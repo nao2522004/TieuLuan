@@ -11,6 +11,7 @@ import { RefreshToken } from "./entities/refresh-token.entity";
 import { LoginDto } from "./dto/login.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { User } from "../users/entities/user.entity";
+import { RefreshTokenDto } from "./dto/refresh-token.dto";
 
 interface PublicUser {
   id: number;
@@ -127,5 +128,64 @@ export class AuthService {
       is_active: user.isActive,
       created_at: user.createdAt,
     };
+  }
+
+  async refresh(
+    dto: RefreshTokenDto,
+  ): Promise<{ access_token: string; refresh_token: string }> {
+    const tokenHash = createHash("sha256")
+      .update(dto.refresh_token)
+      .digest("hex");
+
+    const stored = await this.refreshTokenRepository.findOne({
+      where: { tokenHash },
+    });
+
+    const invalid = () =>
+      new BusinessException(
+        "AUTH_INVALID_REFRESH_TOKEN",
+        401,
+        "Refresh token không hợp lệ hoặc đã hết hạn.",
+      );
+
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt.getTime() < Date.now()
+    ) {
+      throw invalid();
+    }
+
+    const user = await this.usersService.findById(stored.userId);
+    if (!user || !user.isActive) {
+      throw invalid();
+    }
+
+    // Rotate: thu hồi token cũ, cấp token mới
+    stored.revokedAt = new Date();
+    await this.refreshTokenRepository.save(stored);
+
+    const accessToken = this.signAccessToken(user);
+    const newRefreshToken = await this.issueRefreshToken(user, {});
+
+    return { access_token: accessToken, refresh_token: newRefreshToken };
+  }
+
+  async logout(dto: RefreshTokenDto): Promise<{ message: string }> {
+    const tokenHash = createHash("sha256")
+      .update(dto.refresh_token)
+      .digest("hex");
+
+    const stored = await this.refreshTokenRepository.findOne({
+      where: { tokenHash },
+    });
+
+    if (stored && !stored.revokedAt) {
+      stored.revokedAt = new Date();
+      await this.refreshTokenRepository.save(stored);
+    }
+
+    // Luôn trả thành công dù token có tồn tại hay không
+    return { message: "Đăng xuất thành công." };
   }
 }

@@ -8,12 +8,21 @@ import { UsersModule } from "./modules/users/users.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { User } from "./modules/users/entities/user.entity";
 import { RefreshToken } from "./modules/auth/entities/refresh-token.entity";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { APP_GUARD } from "@nestjs/core";
+import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validate,
+    ConfigModule.forRoot({ isGlobal: true, validate }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: parseInt(config.get<string>("THROTTLE_TTL") ?? "60000", 10),
+          limit: parseInt(config.get<string>("THROTTLE_LIMIT") ?? "100", 10),
+        },
+      ],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -33,9 +42,10 @@ import { RefreshToken } from "./modules/auth/entities/refresh-token.entity";
     UsersModule,
     AuthModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestIdMiddleware).forRoutes("*");
+    consumer.apply(RequestIdMiddleware, HttpLoggerMiddleware).forRoutes("*");
   }
 }
