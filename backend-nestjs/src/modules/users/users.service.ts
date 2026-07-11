@@ -24,11 +24,13 @@ export class UsersService {
     fullName: string;
     email: string;
     passwordHash: string;
+    branchId?: number | null;
   }): Promise<User> {
     const user = this.usersRepository.create({
       fullName: data.fullName,
       email: data.email,
       passwordHash: data.passwordHash,
+      branchId: data.branchId ?? null,
       role: "staff",
       isActive: true,
     });

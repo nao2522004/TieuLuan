@@ -8,6 +8,9 @@ import { UsersModule } from "./modules/users/users.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { User } from "./modules/users/entities/user.entity";
 import { RefreshToken } from "./modules/auth/entities/refresh-token.entity";
+import { Branch } from "./modules/branches/entities/branch.entity";
+import { Shift } from "./modules/shifts/entities/shift.entity";
+import { Return } from "./modules/returns/entities/return.entity";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
 import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware";
@@ -33,7 +36,7 @@ import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware
         username: config.get<string>("DB_USER"),
         password: config.get<string>("DB_PASSWORD"),
         database: config.get<string>("DB_NAME"),
-        entities: [User, RefreshToken],
+        entities: [User, RefreshToken, Branch, Shift, Return],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
       }),

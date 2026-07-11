@@ -16,6 +16,9 @@ export class PublicUserDto {
   @ApiProperty({ example: true })
   is_active: boolean;
 
+  @ApiProperty({ example: 1, nullable: true, description: 'ID chi nhánh — null nếu là admin toàn hệ thống' })
+  branch_id: number | null;
+
   @ApiProperty({ example: '2026-07-11T10:00:00.000Z' })
   created_at: Date;
 }

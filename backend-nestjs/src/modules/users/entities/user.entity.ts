@@ -3,7 +3,6 @@ import {
   CreateDateColumn,
   Entity,
   PrimaryColumn,
-  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
 
@@ -20,6 +19,17 @@ export class User {
     },
   })
   id: number;
+
+  @Column({
+    name: "branch_id",
+    type: "bigint",
+    nullable: true,
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value != null ? parseInt(value, 10) : null),
+    },
+  })
+  branchId: number | null;
 
   @Column({ name: "full_name", type: "varchar", length: 150 })
   fullName: string;

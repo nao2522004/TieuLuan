@@ -19,6 +19,7 @@ interface PublicUser {
   email: string;
   role: string;
   is_active: boolean;
+  branch_id: number | null;
   created_at: Date;
 }
 
@@ -86,7 +87,7 @@ export class AuthService {
       10,
     );
     return this.jwtService.sign(
-      { sub: user.id, email: user.email, role: user.role },
+      { sub: user.id, email: user.email, role: user.role, branchId: user.branchId ?? null },
       {
         secret: this.configService.get<string>("JWT_ACCESS_SECRET"),
         expiresIn,
@@ -126,6 +127,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       is_active: user.isActive,
+      branch_id: user.branchId ?? null,
       created_at: user.createdAt,
     };
   }
