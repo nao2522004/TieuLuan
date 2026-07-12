@@ -1,15 +1,8 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import {
-  IsInt,
-  IsOptional,
-  IsPositive,
-  IsString,
-  Max,
-  Min,
-} from "class-validator";
+import { IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
-export class QueryProductDto {
+export class QueryBranchDto {
   @ApiPropertyOptional({ example: 1, default: 1 })
   @IsOptional()
   @Type(() => Number)
@@ -26,24 +19,10 @@ export class QueryProductDto {
   limit?: number = 10;
 
   @ApiPropertyOptional({
-    example: "nước suối",
-    description: "Tìm theo tên sản phẩm",
+    example: "quận 1",
+    description: "Tìm theo tên chi nhánh",
   })
   @IsOptional()
   @IsString()
   search?: string;
-
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: "phải là số nguyên" })
-  @IsPositive({ message: "phải là số nguyên dương" })
-  branch_id?: number;
-
-  @ApiPropertyOptional({ example: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: "phải là số nguyên" })
-  @IsPositive({ message: "phải là số nguyên dương" })
-  category_id?: number;
 }

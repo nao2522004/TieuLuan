@@ -14,55 +14,49 @@ import {
 
 export class CreateProductDto {
   @ApiProperty({ example: 1, description: "ID chi nhánh sở hữu sản phẩm" })
-  @IsNotEmpty({ message: "không được để trống" })
   @Type(() => Number)
   @IsInt({ message: "phải là số nguyên" })
   @IsPositive({ message: "phải là số nguyên dương" })
+  @IsNotEmpty({ message: "không được để trống" })
   branch_id: number;
 
   @ApiProperty({ example: 1 })
-  @IsNotEmpty({ message: "không được để trống" })
   @Type(() => Number)
   @IsInt({ message: "phải là số nguyên" })
   @IsPositive({ message: "phải là số nguyên dương" })
+  @IsNotEmpty({ message: "không được để trống" })
   category_id: number;
 
-  @ApiProperty({ example: "8938505970018", maxLength: 50 })
+  @ApiProperty({ example: "8931234500019", maxLength: 50 })
   @IsString()
   @IsNotEmpty({ message: "không được để trống" })
   @MaxLength(50, { message: "tối đa 50 ký tự" })
   barcode: string;
 
-  @ApiProperty({ example: "Coca-Cola lon 330ml", maxLength: 200 })
+  @ApiProperty({ example: "Nước suối Aquafina 500ml", maxLength: 200 })
   @IsString()
   @IsNotEmpty({ message: "không được để trống" })
   @MaxLength(200, { message: "tối đa 200 ký tự" })
   name: string;
 
-  @ApiProperty({ example: "lon", maxLength: 20 })
+  @ApiProperty({ example: "chai", maxLength: 20 })
   @IsString()
   @IsNotEmpty({ message: "không được để trống" })
   @MaxLength(20, { message: "tối đa 20 ký tự" })
   unit: string;
 
-  @ApiProperty({ example: 8000, description: "Giá vốn" })
-  @IsNotEmpty({ message: "không được để trống" })
+  @ApiProperty({ example: 4000, description: "Giá vốn - NUMERIC(12,2)" })
   @Type(() => Number)
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    { message: "phải là số, tối đa 2 chữ số thập phân" },
-  )
+  @IsNumber({}, { message: "phải là số" })
   @Min(0, { message: "phải >= 0" })
+  @IsNotEmpty({ message: "không được để trống" })
   cost_price: number;
 
-  @ApiProperty({ example: 10000, description: "Giá bán" })
-  @IsNotEmpty({ message: "không được để trống" })
+  @ApiProperty({ example: 6000, description: "Giá bán - NUMERIC(12,2)" })
   @Type(() => Number)
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    { message: "phải là số, tối đa 2 chữ số thập phân" },
-  )
+  @IsNumber({}, { message: "phải là số" })
   @Min(0, { message: "phải >= 0" })
+  @IsNotEmpty({ message: "không được để trống" })
   sale_price: number;
 
   @ApiPropertyOptional({ example: 100, default: 0 })
@@ -72,11 +66,7 @@ export class CreateProductDto {
   @Min(0, { message: "phải >= 0" })
   stock_quantity?: number;
 
-  @ApiPropertyOptional({
-    example: 10,
-    default: 10,
-    description: "Ngưỡng cảnh báo tồn thấp",
-  })
+  @ApiPropertyOptional({ example: 10, default: 10 })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: "phải là số nguyên" })
@@ -85,6 +75,6 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({ example: "2026-12-31" })
   @IsOptional()
-  @IsDateString({}, { message: "phải đúng định dạng ngày YYYY-MM-DD" })
+  @IsDateString({}, { message: "phải là ngày hợp lệ (YYYY-MM-DD)" })
   expiry_date?: string;
 }

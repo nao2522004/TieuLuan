@@ -6,11 +6,6 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-const numericTransformer = {
-  to: (value?: number) => value,
-  from: (value: string | null) => (value === null ? null : parseFloat(value)),
-};
-
 @Entity("products")
 export class Product {
   @PrimaryColumn({
@@ -52,22 +47,10 @@ export class Product {
   @Column({ type: "varchar", length: 20 })
   unit: string;
 
-  @Column({
-    name: "cost_price",
-    type: "numeric",
-    precision: 12,
-    scale: 2,
-    transformer: numericTransformer,
-  })
+  @Column({ name: "cost_price", type: "numeric", precision: 12, scale: 2 })
   costPrice: number;
 
-  @Column({
-    name: "sale_price",
-    type: "numeric",
-    precision: 12,
-    scale: 2,
-    transformer: numericTransformer,
-  })
+  @Column({ name: "sale_price", type: "numeric", precision: 12, scale: 2 })
   salePrice: number;
 
   @Column({ name: "stock_quantity", type: "integer", default: 0 })

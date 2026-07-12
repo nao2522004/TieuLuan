@@ -1,45 +1,67 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ILike, IsNull, Not, Repository } from "typeorm";
 import { Product } from "./entities/product.entity";
-import { Branch } from "../branches/entities/branch.entity";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
 import { ProductDto } from "./dto/product-response.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
+import { RedisService } from "../../common/redis/redis.service";
+import { BranchesService } from "../branches/branches.service";
 import { CategoriesService } from "../categories/categories.service";
+
+const CACHE_PREFIX = "products";
 
 @Injectable()
 export class ProductsService {
+  private readonly cacheTtl: number;
+
   constructor(
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>,
-    @InjectRepository(Branch)
-    private readonly branchesRepository: Repository<Branch>,
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
+    private readonly branchesService: BranchesService,
     private readonly categoriesService: CategoriesService,
-  ) {}
+  ) {
+    this.cacheTtl = parseInt(
+      this.configService.get<string>("REDIS_CACHE_TTL") ?? "3600",
+      10,
+    );
+  }
 
   async findAll(
     query: QueryProductDto,
   ): Promise<{ data: ProductDto[]; meta: PaginationMeta }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
+    const cacheKey = this.buildListCacheKey(query, page, limit);
+
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // cache hỏng/không parse được -> bỏ qua, query DB như bình thường
+      }
+    }
 
     const [rows, total] = await this.productsRepository.findAndCount({
       where: {
         deletedAt: IsNull(),
+        ...(query.search ? { name: ILike(`%${query.search}%`) } : {}),
         ...(query.branch_id ? { branchId: query.branch_id } : {}),
         ...(query.category_id ? { categoryId: query.category_id } : {}),
-        ...(query.search ? { name: ILike(`%${query.search}%`) } : {}),
       },
       order: { id: "ASC" },
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    return {
+    const result = {
       data: rows.map((row) => this.toDto(row)),
       meta: {
         current_page: page,
@@ -48,16 +70,36 @@ export class ProductsService {
         total_pages: Math.ceil(total / limit) || 0,
       },
     };
+
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(result),
+      this.cacheTtl,
+    );
+    return result;
   }
 
   async findOne(id: number): Promise<ProductDto> {
+    const cacheKey = this.detailCacheKey(id);
+
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // fallback query DB nếu cache hỏng
+      }
+    }
+
     const product = await this.findActiveOrThrow(id);
-    return this.toDto(product);
+    const dto = this.toDto(product);
+    await this.redisService.set(cacheKey, JSON.stringify(dto), this.cacheTtl);
+    return dto;
   }
 
   async create(dto: CreateProductDto): Promise<ProductDto> {
-    await this.assertBranchExists(dto.branch_id);
-    await this.categoriesService.findOne(dto.category_id); // throws CATEGORY_NOT_FOUND nếu không có
+    await this.branchesService.findOne(dto.branch_id);
+    await this.categoriesService.findOne(dto.category_id);
     await this.assertBarcodeNotTaken(dto.branch_id, dto.barcode);
 
     const entity = this.productsRepository.create({
@@ -73,26 +115,30 @@ export class ProductsService {
       expiryDate: dto.expiry_date ?? null,
     });
     const saved = await this.productsRepository.save(entity);
+
+    await this.evictListCache();
+
     return this.toDto(saved);
   }
 
   async update(id: number, dto: UpdateProductDto): Promise<ProductDto> {
     const product = await this.findActiveOrThrow(id);
 
-    const effectiveBranchId = dto.branch_id ?? product.branchId;
-    const effectiveBarcode = dto.barcode ?? product.barcode;
-
-    if (dto.branch_id !== undefined && dto.branch_id !== product.branchId) {
-      await this.assertBranchExists(dto.branch_id);
+    if (dto.branch_id !== undefined) {
+      await this.branchesService.findOne(dto.branch_id);
     }
-    if (
-      dto.category_id !== undefined &&
-      dto.category_id !== product.categoryId
-    ) {
+    if (dto.category_id !== undefined) {
       await this.categoriesService.findOne(dto.category_id);
     }
-    if (dto.branch_id !== undefined || dto.barcode !== undefined) {
-      await this.assertBarcodeNotTaken(effectiveBranchId, effectiveBarcode, id);
+
+    const nextBranchId = dto.branch_id ?? product.branchId;
+    const nextBarcode = dto.barcode ?? product.barcode;
+    const barcodeOrBranchChanged =
+      (dto.barcode !== undefined && dto.barcode !== product.barcode) ||
+      (dto.branch_id !== undefined && dto.branch_id !== product.branchId);
+
+    if (barcodeOrBranchChanged) {
+      await this.assertBarcodeNotTaken(nextBranchId, nextBarcode, id);
     }
 
     if (dto.branch_id !== undefined) product.branchId = dto.branch_id;
@@ -109,6 +155,11 @@ export class ProductsService {
     if (dto.expiry_date !== undefined) product.expiryDate = dto.expiry_date;
 
     const saved = await this.productsRepository.save(product);
+
+    // Evict cache
+    await this.evictDetailCache(id);
+    await this.evictListCache();
+
     return this.toDto(saved);
   }
 
@@ -116,6 +167,10 @@ export class ProductsService {
     const product = await this.findActiveOrThrow(id);
     product.deletedAt = new Date();
     await this.productsRepository.save(product);
+
+    await this.evictDetailCache(id);
+    await this.evictListCache();
+
     return { message: "Xóa sản phẩm thành công." };
   }
 
@@ -131,19 +186,6 @@ export class ProductsService {
       );
     }
     return product;
-  }
-
-  private async assertBranchExists(branchId: number): Promise<void> {
-    const branch = await this.branchesRepository.findOne({
-      where: { id: branchId, deletedAt: IsNull() },
-    });
-    if (!branch) {
-      throw new BusinessException(
-        "BRANCH_NOT_FOUND",
-        404,
-        "Không tìm thấy chi nhánh.",
-      );
-    }
   }
 
   private async assertBarcodeNotTaken(
@@ -184,5 +226,36 @@ export class ProductsService {
       created_at: product.createdAt,
       updated_at: product.updatedAt,
     };
+  }
+
+  private detailCacheKey(id: number): string {
+    return `${CACHE_PREFIX}:detail:${id}`;
+  }
+
+  private buildListCacheKey(
+    query: QueryProductDto,
+    page: number,
+    limit: number,
+  ): string {
+    return [
+      CACHE_PREFIX,
+      "list",
+      `p${page}`,
+      `l${limit}`,
+      `s${query.search ?? ""}`,
+      `b${query.branch_id ?? ""}`,
+      `c${query.category_id ?? ""}`,
+    ].join(":");
+  }
+
+  private async evictDetailCache(id: number): Promise<void> {
+    await this.redisService.del(this.detailCacheKey(id));
+  }
+
+  private async evictListCache(): Promise<void> {
+    const keys = await this.redisService.keys(`${CACHE_PREFIX}:list:*`);
+    if (keys.length > 0) {
+      await this.redisService.del(...keys);
+    }
   }
 }

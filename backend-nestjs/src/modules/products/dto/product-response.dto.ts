@@ -11,19 +11,19 @@ export class ProductDto {
   @ApiProperty({ example: 1 })
   category_id: number;
 
-  @ApiProperty({ example: "8938505970018" })
+  @ApiProperty({ example: "8931234500019" })
   barcode: string;
 
-  @ApiProperty({ example: "Coca-Cola lon 330ml" })
+  @ApiProperty({ example: "Nước suối Aquafina 500ml" })
   name: string;
 
-  @ApiProperty({ example: "lon" })
+  @ApiProperty({ example: "chai" })
   unit: string;
 
-  @ApiProperty({ example: 8000 })
+  @ApiProperty({ example: 4000 })
   cost_price: number;
 
-  @ApiProperty({ example: 10000 })
+  @ApiProperty({ example: 6000 })
   sale_price: number;
 
   @ApiProperty({ example: 100 })

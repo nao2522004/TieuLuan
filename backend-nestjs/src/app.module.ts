@@ -16,8 +16,10 @@ import { APP_GUARD } from "@nestjs/core";
 import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { Category } from "./modules/categories/entities/category.entity";
-import { Product } from "./modules/products/entities/product.entity";
+import { RedisModule } from "./common/redis/redis.module";
+import { BranchesModule } from "./modules/branches/branches.module";
 import { ProductsModule } from "./modules/products/products.module";
+import { Product } from "./modules/products/entities/product.entity";
 
 @Module({
   imports: [
@@ -53,10 +55,12 @@ import { ProductsModule } from "./modules/products/products.module";
         logging: config.get<string>("NODE_ENV") === "development",
       }),
     }),
+    RedisModule,
     HealthModule,
     UsersModule,
     AuthModule,
     CategoriesModule,
+    BranchesModule,
     ProductsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

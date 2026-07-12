@@ -55,6 +55,14 @@ class EnvironmentVariables {
   @IsInt()
   @Min(4)
   BCRYPT_SALT_ROUNDS: number;
+
+  @IsString()
+  @IsNotEmpty()
+  REDIS_URL: string;
+
+  @IsInt()
+  @Min(1)
+  REDIS_CACHE_TTL: number;
 }
 
 export function validate(config: Record<string, unknown>) {
@@ -68,6 +76,7 @@ export function validate(config: Record<string, unknown>) {
       10,
     ),
     BCRYPT_SALT_ROUNDS: parseInt(config.BCRYPT_SALT_ROUNDS as string, 10),
+    REDIS_CACHE_TTL: parseInt(config.REDIS_CACHE_TTL as string, 10),
   };
 
   const validatedConfig = plainToInstance(EnvironmentVariables, toValidate, {

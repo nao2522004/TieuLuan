@@ -49,6 +49,7 @@ services:
       DB_PASSWORD: ""
       DB_NAME: store_nestjs
       REDIS_URL: redis://redis_nestjs:6379
+      REDIS_CACHE_TTL: 3600   
       JWT_ACCESS_SECRET: change_me_access_secret
       JWT_ACCESS_EXPIRATION: 900
       JWT_REFRESH_SECRET: change_me_refresh_secret

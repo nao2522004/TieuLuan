@@ -22,8 +22,8 @@ import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
 import {
-  ProductResponseDto,
   PaginatedProductResponseDto,
+  ProductResponseDto,
 } from "./dto/product-response.dto";
 import { ApiErrorResponse } from "../../common/dto/api-response.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
@@ -39,16 +39,14 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
-  @ApiOperation({
-    summary: "Danh sách sản phẩm (phân trang, lọc theo chi nhánh/danh mục/tên)",
-  })
+  @ApiOperation({ summary: "Danh sách sản phẩm (phân trang, có cache Redis)" })
   @ApiResponse({ status: 200, type: PaginatedProductResponseDto })
   findAll(@Query() query: QueryProductDto) {
     return this.productsService.findAll(query);
   }
 
   @Get(":id")
-  @ApiOperation({ summary: "Chi tiết 1 sản phẩm" })
+  @ApiOperation({ summary: "Chi tiết 1 sản phẩm (có cache Redis)" })
   @ApiResponse({ status: 200, type: ProductResponseDto })
   @ApiResponse({ status: 404, type: ApiErrorResponse })
   findOne(@Param("id", ParseIntIdPipe) id: number) {
@@ -62,14 +60,10 @@ export class ProductsController {
   @ApiResponse({ status: 201, type: ProductResponseDto })
   @ApiResponse({
     status: 404,
+    description: "Không tìm thấy branch/category",
     type: ApiErrorResponse,
-    description: "Không tìm thấy chi nhánh/danh mục",
   })
-  @ApiResponse({
-    status: 409,
-    type: ApiErrorResponse,
-    description: "Trùng barcode trong cùng chi nhánh",
-  })
+  @ApiResponse({ status: 409, type: ApiErrorResponse })
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }
@@ -77,7 +71,9 @@ export class ProductsController {
   @Patch(":id")
   @UseGuards(RolesGuard)
   @Roles("admin")
-  @ApiOperation({ summary: "Cập nhật sản phẩm, kể cả giá (chỉ admin)" })
+  @ApiOperation({
+    summary: "Cập nhật sản phẩm (chỉ admin) - evict cache Redis ngay lập tức",
+  })
   @ApiResponse({ status: 200, type: ProductResponseDto })
   @ApiResponse({ status: 404, type: ApiErrorResponse })
   @ApiResponse({ status: 409, type: ApiErrorResponse })
