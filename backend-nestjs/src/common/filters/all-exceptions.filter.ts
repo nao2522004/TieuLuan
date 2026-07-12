@@ -96,9 +96,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       case HttpStatus.FORBIDDEN:
         return "FORBIDDEN";
       case HttpStatus.NOT_FOUND:
-        return "NOT_FOUND";
-      case HttpStatus.NOT_FOUND:
-        return "NOT_FOUND";
+        return 'NOT_FOUND';
       case HttpStatus.TOO_MANY_REQUESTS:
         return "RATE_LIMIT_EXCEEDED";
       default:

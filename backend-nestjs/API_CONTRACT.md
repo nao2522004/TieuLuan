@@ -6,11 +6,14 @@
 
 ## Quy ước chung
 
-- Base path: `/` (chưa versioning ở giai đoạn Ngày 1-2 — sẽ chuẩn hóa `/api/v1` khi vào Ngày 6-7 lúc thêm CRUD)
+- Base path: `/` (sẽ chuẩn hóa `/api/v1` từ Ngày 6 khi thêm CRUD)
 - ID: số nguyên (`bigint`), không dùng UUID
 - Thời gian: ISO 8601 UTC, dạng `YYYY-MM-DDTHH:mm:ss.sssZ`
 - Tiền tệ: số thô, không format dấu chấm/phẩy
-- **Field JSON convention: `snake_case`** cho cả request/response body (kể cả bên NestJS, dù biến nội bộ TS dùng camelCase) — để khớp mặc định của Pydantic/FastAPI, tránh phải cấu hình alias 2 chiều ở tuần 3.
+- **Field JSON convention: `snake_case`** cho cả request/response body (kể cả bên NestJS, dù biến nội bộ TS dùng camelCase)
+- Tài khoản seed sẵn để test:
+  - `admin@store.local` / `Admin@123` (role `admin`)
+  - `staff@store.local` / `Staff@123` (role `staff`)
 - Response thành công:
   ```json
   { "success": true, "data": { }, "timestamp": "2026-07-11T10:00:00.000Z" }
@@ -38,55 +41,15 @@
 
 ---
 
-## POST /auth/register
-
-- Auth: không cần
-- Status: `201 Created` (tạo mới resource `user`)
-
-**Request:**
-```json
-{
-  "full_name": "Nguyễn Văn A",
-  "email": "a@example.com",
-  "password": "matkhau123"
-}
-```
-
-**Response 201:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "3",
-    "full_name": "Nguyễn Văn A",
-    "email": "a@example.com",
-    "role": "staff",
-    "is_active": true,
-    "created_at": "2026-07-11T10:00:00.000Z"
-  },
-  "timestamp": "2026-07-11T10:00:00.000Z"
-}
-```
-
-**Lỗi có thể có:**
-| Case | Status | error.code | message mẫu |
-|---|---|---|---|
-| Email đã tồn tại | 409 | `EMAIL_EXISTS` | "Email này đã được sử dụng để đăng ký tài khoản." |
-| Thiếu/sai field | 400 | `VALIDATION_ERROR` | `"email: phải là email hợp lệ, password: phải có ít nhất 6 ký tự"` |
-| Gửi thừa field (VD `role`) | 400 | `VALIDATION_ERROR` | field thừa bị chặn ở tầng ValidationPipe (whitelist) |
-
-**Lưu ý quan trọng:** client KHÔNG được truyền `role` — server luôn gán mặc định `staff` khi đăng ký (chống Mass Assignment, Mục 4 ruleset). Muốn tạo `admin` phải qua thao tác riêng của quản trị viên (chưa có ở Ngày 1-2).
-
----
-
 ## POST /auth/login
 
 - Auth: không cần
-- Status: `200 OK` (khai báo tường minh, KHÔNG dùng default 201 của POST)
+- Status: `200 OK`
+- Rate limit: **5 lần/60 giây** — vượt quá trả `429`
 
 **Request:**
 ```json
-{ "email": "a@example.com", "password": "matkhau123" }
+{ "email": "admin@store.local", "password": "Admin@123" }
 ```
 
 **Response 200:**
@@ -95,11 +58,12 @@
   "success": true,
   "data": {
     "user": {
-      "id": "3",
-      "full_name": "Nguyễn Văn A",
-      "email": "a@example.com",
-      "role": "staff",
+      "id": 1,
+      "full_name": "Quản trị viên",
+      "email": "admin@store.local",
+      "role": "admin",
       "is_active": true,
+      "branch_id": null,
       "created_at": "2026-07-11T10:00:00.000Z"
     },
     "access_token": "eyJhbGciOi...",
@@ -112,18 +76,100 @@
 **Lỗi có thể có:**
 | Case | Status | error.code | message mẫu |
 |---|---|---|---|
-| Sai email hoặc sai mật khẩu | 401 | `AUTH_INVALID_CREDENTIALS` | "Email hoặc mật khẩu không đúng." (KHÔNG tiết lộ field nào sai) |
-| Tài khoản bị khóa (`is_active=false`) | 401 | `AUTH_ACCOUNT_DISABLED` | "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên." |
-| Thiếu/sai field | 400 | `VALIDATION_ERROR` | như trên |
+| Sai email hoặc sai mật khẩu | 401 | `AUTH_INVALID_CREDENTIALS` | "Email hoặc mật khẩu không đúng." |
+| Tài khoản bị khóa | 401 | `AUTH_ACCOUNT_DISABLED` | "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên." |
+| Thiếu/sai field | 400 | `VALIDATION_ERROR` | danh sách lỗi join bằng ", " |
+| Vượt rate limit | 429 | `RATE_LIMIT_EXCEEDED` | — |
 
 **Ghi chú token:**
-- `access_token`: JWT, hạn `JWT_ACCESS_EXPIRATION` giây (mặc định 900s = 15 phút), payload gồm `sub` (user id), `email`, `role`.
-- `refresh_token`: chuỗi random 96 hex-char, server chỉ lưu **hash SHA-256** trong bảng `refresh_tokens`, hạn `JWT_REFRESH_EXPIRATION_DAYS` ngày (mặc định 7 ngày). Endpoint `/auth/refresh` và `/auth/logout` sẽ hoàn thiện ở Ngày 3.
+- `access_token`: JWT, hạn 900s (15 phút), payload: `{ sub, email, role, branchId }`
+- `refresh_token`: hex 96 ký tự, server lưu hash SHA-256, hạn 7 ngày
 
 ---
 
-## TODO — sẽ bổ sung Ngày 3 trở đi
-- `POST /auth/logout`
-- `POST /auth/refresh`
-- Rate limit `POST /auth/login`
-- RBAC 403 cho các route admin-only
+## POST /auth/refresh
+
+- Auth: không cần
+- Status: `200 OK`
+
+**Request:**
+```json
+{ "refresh_token": "9f1c2e...(hex 96 ký tự)" }
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOi...(mới)",
+    "refresh_token": "a3b4c5...(mới, hex 96 ký tự)"
+  },
+  "timestamp": "2026-07-11T10:00:00.000Z"
+}
+```
+
+> **Token Rotation:** refresh token cũ bị thu hồi ngay lập tức. Dùng lại token cũ → `401`.
+
+**Lỗi có thể có:**
+| Case | Status | error.code |
+|---|---|---|
+| Token không tồn tại / đã thu hồi / hết hạn | 401 | `AUTH_INVALID_REFRESH_TOKEN` |
+
+---
+
+## POST /auth/logout
+
+- Auth: không cần
+- Status: `200 OK`
+
+**Request:**
+```json
+{ "refresh_token": "9f1c2e..." }
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "data": { "message": "Đăng xuất thành công." },
+  "timestamp": "2026-07-11T10:00:00.000Z"
+}
+```
+
+> Luôn trả `200` dù token có tồn tại hay không (tránh leak thông tin).
+
+---
+
+## RBAC — Phân quyền
+
+| Endpoint | Guard | Role yêu cầu |
+|---|---|---|
+| `GET /users/me` | `JwtAuthGuard` | Bất kỳ role nào |
+| `GET /users/admin-only-demo` | `JwtAuthGuard` + `RolesGuard` | `admin` |
+
+**Lỗi phân quyền:**
+| Case | Status | error.code |
+|---|---|---|
+| Không có / sai Bearer token | 401 | `UNAUTHORIZED` |
+| Đúng token nhưng sai role | 403 | `FORBIDDEN` |
+
+---
+
+## Response Header — Trace ID
+
+Mọi response đều có header `X-Request-ID: <uuid-v4>`.
+- Nếu client gửi `X-Request-ID` trong request → server dùng lại giá trị đó
+- Nếu không → server tự sinh UUID v4
+- `trace_id` trong response body lỗi khớp với `X-Request-ID`
+
+---
+
+## TODO — sẽ bổ sung từ Ngày 6 (CRUD)
+
+- `GET/POST /branches`
+- `GET/POST/PATCH/DELETE /products`
+- `GET/POST /orders`
+- `GET/POST /shifts` (open/close shift)
+- `POST /returns`
+- `PATCH /orders/:id/confirm-payment` (VietQR)

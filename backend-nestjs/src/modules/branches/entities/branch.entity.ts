@@ -27,6 +27,15 @@ export class Branch {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;
 
+  @Column({ name: 'bank_bin', type: 'varchar', length: 10, nullable: true })
+  bankBin: string | null;
+
+  @Column({ name: 'bank_account_no', type: 'varchar', length: 30, nullable: true })
+  bankAccountNo: string | null;
+
+  @Column({ name: 'bank_account_name', type: 'varchar', length: 150, nullable: true })
+  bankAccountName: string | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
