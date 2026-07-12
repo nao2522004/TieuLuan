@@ -14,6 +14,8 @@ import { Return } from "./modules/returns/entities/return.entity";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
 import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware";
+import { CategoriesModule } from "./modules/categories/categories.module";
+import { Category } from "./modules/categories/entities/category.entity";
 
 @Module({
   imports: [
@@ -36,7 +38,7 @@ import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware
         username: config.get<string>("DB_USER"),
         password: config.get<string>("DB_PASSWORD"),
         database: config.get<string>("DB_NAME"),
-        entities: [User, RefreshToken, Branch, Shift, Return],
+        entities: [User, RefreshToken, Branch, Shift, Return, Category],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
       }),
@@ -44,6 +46,7 @@ import { HttpLoggerMiddleware } from "./common/middleware/http-logger.middleware
     HealthModule,
     UsersModule,
     AuthModule,
+    CategoriesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
