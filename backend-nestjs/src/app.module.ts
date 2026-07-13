@@ -22,6 +22,10 @@ import { ProductsModule } from "./modules/products/products.module";
 import { Product } from "./modules/products/entities/product.entity";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { InventoryTransaction } from "./modules/inventory/entities/inventory-transaction.entity";
+import { ShiftsModule } from "./modules/shifts/shifts.module";
+import { OrdersModule } from "./modules/orders/orders.module";
+import { Order } from "./modules/orders/entities/order.entity";
+import { OrderItem } from "./modules/orders/entities/order-item.entity";
 
 @Module({
   imports: [
@@ -53,6 +57,8 @@ import { InventoryTransaction } from "./modules/inventory/entities/inventory-tra
           Category,
           Product,
           InventoryTransaction,
+          Order,
+          OrderItem,
         ],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
@@ -66,6 +72,8 @@ import { InventoryTransaction } from "./modules/inventory/entities/inventory-tra
     BranchesModule,
     ProductsModule,
     InventoryModule,
+    ShiftsModule,
+    OrdersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
