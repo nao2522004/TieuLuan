@@ -325,6 +325,11 @@ export class ProductsService {
     ].join(":");
   }
 
+  async evictCacheForProduct(id: number): Promise<void> {
+    await this.evictDetailCache(id);
+    await this.evictListCache();
+  }
+
   private async evictDetailCache(id: number): Promise<void> {
     await this.redisService.del(this.detailCacheKey(id));
   }

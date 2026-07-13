@@ -49,12 +49,7 @@ export class ProductsController {
     return this.productsService.findAll(query);
   }
 
-  // ── Ngày 9 ──────────────────────────────────────────────────────────────
-  // QUAN TRỌNG: 2 route dưới đây BẮT BUỘC khai báo TRƯỚC @Get(":id"),
-  // vì NestJS match route theo đúng thứ tự khai báo trong class - nếu để
-  // sau, request GET /products/alerts sẽ rơi vào findOne() với id="alerts"
-  // và bị ParseIntIdPipe trả 400 VALIDATION_ERROR sai ý nghĩa.
-
+  // 2 route dưới đây BẮT BUỘC khai báo TRƯỚC @Get(":id"),
   @Get("alerts")
   @ApiOperation({
     summary:
@@ -88,14 +83,8 @@ export class ProductsController {
     @Query() query: ProductBranchScopeDto,
     @Req() req: Request,
   ) {
-    return this.productsService.findByBarcode(
-      code,
-      req.user!,
-      query.branch_id,
-    );
+    return this.productsService.findByBarcode(code, req.user!, query.branch_id);
   }
-
-  // ─────────────────────────────────────────────────────────────────────
 
   @Get(":id")
   @ApiOperation({ summary: "Chi tiết 1 sản phẩm (có cache Redis)" })

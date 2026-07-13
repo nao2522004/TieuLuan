@@ -20,6 +20,8 @@ import { RedisModule } from "./common/redis/redis.module";
 import { BranchesModule } from "./modules/branches/branches.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { Product } from "./modules/products/entities/product.entity";
+import { InventoryModule } from "./modules/inventory/inventory.module";
+import { InventoryTransaction } from "./modules/inventory/entities/inventory-transaction.entity";
 
 @Module({
   imports: [
@@ -50,6 +52,7 @@ import { Product } from "./modules/products/entities/product.entity";
           Return,
           Category,
           Product,
+          InventoryTransaction,
         ],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
@@ -62,6 +65,7 @@ import { Product } from "./modules/products/entities/product.entity";
     CategoriesModule,
     BranchesModule,
     ProductsModule,
+    InventoryModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
