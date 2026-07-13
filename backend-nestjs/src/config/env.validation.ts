@@ -63,6 +63,10 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   REDIS_CACHE_TTL: number;
+
+  @IsInt()
+  @Min(1)
+  PRODUCT_EXPIRY_ALERT_DAYS: number;
 }
 
 export function validate(config: Record<string, unknown>) {
@@ -77,6 +81,10 @@ export function validate(config: Record<string, unknown>) {
     ),
     BCRYPT_SALT_ROUNDS: parseInt(config.BCRYPT_SALT_ROUNDS as string, 10),
     REDIS_CACHE_TTL: parseInt(config.REDIS_CACHE_TTL as string, 10),
+    PRODUCT_EXPIRY_ALERT_DAYS: parseInt(
+      (config.PRODUCT_EXPIRY_ALERT_DAYS as string) ?? "7",
+      10,
+    ),
   };
 
   const validatedConfig = plainToInstance(EnvironmentVariables, toValidate, {

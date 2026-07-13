@@ -12,6 +12,7 @@ import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { RedisService } from "../../common/redis/redis.service";
 import { BranchesService } from "../branches/branches.service";
 import { CategoriesService } from "../categories/categories.service";
+import { AuthUser } from "../../common/guards/jwt-auth.guard";
 
 const CACHE_PREFIX = "products";
 
@@ -172,6 +173,82 @@ export class ProductsService {
     await this.evictListCache();
 
     return { message: "Xóa sản phẩm thành công." };
+  }
+
+  // Barcode Lookup
+  async findByBarcode(
+    barcode: string,
+    user: AuthUser,
+    queryBranchId?: number,
+  ): Promise<ProductDto> {
+    const branchId = this.resolveBranchId(user, queryBranchId);
+
+    const product = await this.productsRepository.findOne({
+      where: { barcode, branchId, deletedAt: IsNull() },
+    });
+
+    if (!product) {
+      throw new BusinessException(
+        "PRODUCT_NOT_FOUND",
+        404,
+        "Không tìm thấy sản phẩm với barcode này.",
+      );
+    }
+
+    return this.toDto(product);
+  }
+
+  // Cảnh báo tồn thấp / sắp hết hạn
+  async findAlerts(
+    user: AuthUser,
+    queryBranchId?: number,
+  ): Promise<{ low_stock: ProductDto[]; expiring_soon: ProductDto[] }> {
+    const branchId = this.resolveBranchId(user, queryBranchId);
+    const alertDays = this.getExpiryAlertDays();
+
+    const lowStockRows = await this.productsRepository
+      .createQueryBuilder("p")
+      .where("p.branch_id = :branchId", { branchId })
+      .andWhere("p.deleted_at IS NULL")
+      .andWhere("p.stock_quantity <= p.reorder_level")
+      .orderBy("p.stock_quantity", "ASC")
+      .getMany();
+
+    const expiringSoonRows = await this.productsRepository
+      .createQueryBuilder("p")
+      .where("p.branch_id = :branchId", { branchId })
+      .andWhere("p.deleted_at IS NULL")
+      .andWhere("p.expiry_date IS NOT NULL")
+      .andWhere(
+        "p.expiry_date <= (CURRENT_DATE + make_interval(days => :alertDays))",
+        { alertDays },
+      )
+      .orderBy("p.expiry_date", "ASC")
+      .getMany();
+
+    return {
+      low_stock: lowStockRows.map((row) => this.toDto(row)),
+      expiring_soon: expiringSoonRows.map((row) => this.toDto(row)),
+    };
+  }
+
+  private getExpiryAlertDays(): number {
+    return parseInt(
+      this.configService.get<string>("PRODUCT_EXPIRY_ALERT_DAYS") ?? "7",
+      10,
+    );
+  }
+
+  private resolveBranchId(user: AuthUser, queryBranchId?: number): number {
+    const branchId = queryBranchId ?? user.branchId ?? null;
+    if (!branchId) {
+      throw new BusinessException(
+        "PRODUCT_BRANCH_REQUIRED",
+        400,
+        "branch_id: bắt buộc khi tài khoản không gắn với 1 chi nhánh cụ thể",
+      );
+    }
+    return branchId;
   }
 
   private async findActiveOrThrow(id: number): Promise<Product> {

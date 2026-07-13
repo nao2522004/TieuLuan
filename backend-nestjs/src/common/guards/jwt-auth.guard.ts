@@ -10,6 +10,7 @@ export interface AuthUser {
   id: number;
   email: string;
   role: UserRole;
+  branchId: number | null;
 }
 
 declare module "express-serve-static-core" {
@@ -56,7 +57,12 @@ export class JwtAuthGuard implements CanActivate {
       throw unauthorized();
     }
 
-    request.user = { id: user.id, email: user.email, role: user.role };
+    request.user = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      branchId: user.branchId ?? null,
+    };
     return true;
   }
 }

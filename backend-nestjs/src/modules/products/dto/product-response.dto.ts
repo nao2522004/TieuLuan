@@ -66,3 +66,32 @@ export class PaginatedProductResponseDto {
   @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
   timestamp: string;
 }
+
+// ─── Ngày 9: Cảnh báo tồn thấp / sắp hết hạn ──────────────────────────────
+
+export class ProductAlertsDataDto {
+  @ApiProperty({
+    type: [ProductDto],
+    description: "Sản phẩm có stock_quantity <= reorder_level",
+  })
+  low_stock: ProductDto[];
+
+  @ApiProperty({
+    type: [ProductDto],
+    description:
+      "Sản phẩm có expiry_date trong X ngày tới (X = PRODUCT_EXPIRY_ALERT_DAYS, " +
+      "mặc định 7), bao gồm cả sản phẩm đã hết hạn tính tới thời điểm gọi API",
+  })
+  expiring_soon: ProductDto[];
+}
+
+export class ProductAlertsResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: ProductAlertsDataDto })
+  data: ProductAlertsDataDto;
+
+  @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
+  timestamp: string;
+}
