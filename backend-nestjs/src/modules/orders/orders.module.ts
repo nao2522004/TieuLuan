@@ -6,9 +6,11 @@ import { OrderItem } from "./entities/order-item.entity";
 import { Product } from "../products/entities/product.entity";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
+import { OrderBranchAccessGuard } from "../../common/guards/order-branch-access.guard";
 import { UsersModule } from "../users/users.module";
 import { ProductsModule } from "../products/products.module";
 import { ShiftsModule } from "../shifts/shifts.module";
+import { BranchesModule } from "../branches/branches.module";
 
 @Module({
   imports: [
@@ -17,9 +19,10 @@ import { ShiftsModule } from "../shifts/shifts.module";
     UsersModule,
     ProductsModule,
     ShiftsModule,
+    BranchesModule,
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, OrderBranchAccessGuard],
   exports: [OrdersService],
 })
 export class OrdersModule {}

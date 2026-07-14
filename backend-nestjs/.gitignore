@@ -4,6 +4,7 @@ package-lock.json
 src/database
 RULESET_NestJS_FastAPI.md
 API_CONTRACT.md
+api_contracts/
 
 # Build artifacts
 dist/

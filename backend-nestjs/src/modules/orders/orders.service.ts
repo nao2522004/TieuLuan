@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource } from "typeorm";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
+import { DataSource, Repository } from "typeorm";
 import { Order } from "./entities/order.entity";
 import { OrderItem } from "./entities/order-item.entity";
 import { Product } from "../products/entities/product.entity";
@@ -10,6 +10,11 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 import { ShiftsService } from "../shifts/shifts.service";
 import { ProductsService } from "../products/products.service";
+import { BranchesService } from "../branches/branches.service";
+import {
+  buildVietQrPayload,
+  generateVietQrImage,
+} from "../../common/utils/vietqr.util";
 
 interface LineItem {
   productId: number;
@@ -17,13 +22,23 @@ interface LineItem {
   unitPrice: number;
 }
 
+interface QrResult {
+  content: string;
+  image: string;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    @InjectRepository(Order)
+    private readonly ordersRepository: Repository<Order>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemsRepository: Repository<OrderItem>,
     private readonly shiftsService: ShiftsService,
     private readonly productsService: ProductsService,
+    private readonly branchesService: BranchesService,
   ) {}
 
   async create(dto: CreateOrderDto, user: AuthUser): Promise<OrderDataDto> {
@@ -37,6 +52,36 @@ export class OrdersService {
         "Bạn cần mở ca làm việc trước khi tạo đơn hàng.",
       );
     }
+
+    const isTransfer = dto.payment_method === "transfer";
+    let bankInfo: {
+      bankBin: string;
+      bankAccountNo: string;
+      bankAccountName: string;
+    } | null = null;
+
+    if (isTransfer) {
+      const branch = await this.branchesService.findOne(openShift.branchId);
+      if (
+        !branch.bank_bin ||
+        !branch.bank_account_no ||
+        !branch.bank_account_name
+      ) {
+        throw new BusinessException(
+          "ORDER_BRANCH_NO_BANK_INFO",
+          400,
+          "Chi nhánh chưa cấu hình thông tin tài khoản nhận tiền (bank_bin/" +
+            "bank_account_no/bank_account_name), không thể tạo đơn chuyển khoản.",
+        );
+      }
+      bankInfo = {
+        bankBin: branch.bank_bin,
+        bankAccountNo: branch.bank_account_no,
+        bankAccountName: branch.bank_account_name,
+      };
+    }
+
+    const paymentStatus = isTransfer ? "pending" : "paid";
 
     const sortedItems = [...dto.items].sort(
       (a, b) => a.product_id - b.product_id,
@@ -106,7 +151,7 @@ export class OrdersService {
           createdBy: user.id,
           status: "completed",
           paymentMethod: dto.payment_method,
-          paymentStatus: "paid",
+          paymentStatus,
           discountAmount,
           totalAmount,
         });
@@ -135,6 +180,68 @@ export class OrdersService {
       }
     }
 
+    let qr: QrResult | undefined;
+    if (isTransfer && bankInfo) {
+      const content = buildVietQrPayload({
+        bankBin: bankInfo.bankBin,
+        bankAccountNo: bankInfo.bankAccountNo,
+        bankAccountName: bankInfo.bankAccountName,
+        amount: Number(order.totalAmount),
+        orderId: order.id,
+      });
+      const image = await generateVietQrImage(content);
+      qr = { content, image };
+    }
+
+    return this.toDto(order, items, qr);
+  }
+
+  async confirmPayment(id: number): Promise<OrderDataDto> {
+    const { order, items } = await this.dataSource.transaction(
+      async (manager) => {
+        const orderRepo = manager.getRepository(Order);
+
+        const order = await orderRepo
+          .createQueryBuilder("o")
+          .setLock("pessimistic_write")
+          .where("o.id = :id", { id })
+          .getOne();
+
+        if (!order) {
+          throw new BusinessException(
+            "ORDER_NOT_FOUND",
+            404,
+            "Không tìm thấy đơn hàng.",
+          );
+        }
+
+        if (order.paymentMethod !== "transfer") {
+          throw new BusinessException(
+            "ORDER_NOT_TRANSFER_PAYMENT",
+            400,
+            "Đơn hàng này không dùng hình thức chuyển khoản, không cần xác nhận thanh toán.",
+          );
+        }
+
+        if (order.paymentStatus === "paid") {
+          throw new BusinessException(
+            "ORDER_ALREADY_PAID",
+            409,
+            "Đơn hàng này đã được xác nhận thanh toán trước đó.",
+          );
+        }
+
+        order.paymentStatus = "paid";
+        const saved = await orderRepo.save(order);
+
+        const items = await manager
+          .getRepository(OrderItem)
+          .find({ where: { orderId: id } });
+
+        return { order: saved, items };
+      },
+    );
+
     return this.toDto(order, items);
   }
 
@@ -152,7 +259,7 @@ export class OrdersService {
     }
   }
 
-  private toDto(order: Order, items: OrderItem[]): OrderDataDto {
+  private toDto(order: Order, items: OrderItem[], qr?: QrResult): OrderDataDto {
     return {
       id: order.id,
       branch_id: order.branchId,
@@ -171,6 +278,8 @@ export class OrdersService {
       })),
       created_at: order.createdAt,
       updated_at: order.updatedAt,
+      qr_content: qr?.content ?? null,
+      qr_code: qr?.image ?? null,
     };
   }
 }

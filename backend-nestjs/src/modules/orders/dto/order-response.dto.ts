@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class OrderItemDto {
   @ApiProperty({ example: 1 })
@@ -10,7 +10,10 @@ export class OrderItemDto {
   @ApiProperty({ example: 2 })
   quantity: number;
 
-  @ApiProperty({ example: 6000, description: "Giá bán tại thời điểm tạo đơn (snapshot)" })
+  @ApiProperty({
+    example: 6000,
+    description: "Giá bán tại thời điểm tạo đơn (snapshot)",
+  })
   unit_price: number;
 }
 
@@ -50,6 +53,24 @@ export class OrderDataDto {
 
   @ApiProperty({ example: "2026-07-13T10:00:00.000Z" })
   updated_at: Date;
+
+  @ApiPropertyOptional({
+    example:
+      "00020101021238570010A00000072701270006970422011001234567890208QRIBFTTA5204000053037045406120000005802VN5910STORE...6304ABCD",
+    nullable: true,
+    description:
+      "Chuỗi VietQR chuẩn EMVCo. Chỉ có giá trị khi payment_method='transfer' " +
+      "và payment_status='pending' (sinh real-time, không lưu DB).",
+  })
+  qr_content?: string | null;
+
+  @ApiPropertyOptional({
+    example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+    nullable: true,
+    description:
+      "Ảnh QR base64 PNG (data URI) render sẵn từ qr_content cho FE.",
+  })
+  qr_code?: string | null;
 }
 
 export class OrderResponseDto {
