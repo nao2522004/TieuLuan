@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -18,7 +20,11 @@ import {
 } from "@nestjs/swagger";
 import { OrdersService } from "./orders.service";
 import { CreateOrderDto } from "./dto/create-order.dto";
-import { OrderResponseDto } from "./dto/order-response.dto";
+import { QueryOrderDto } from "./dto/query-order.dto";
+import {
+  OrderResponseDto,
+  PaginatedOrderResponseDto,
+} from "./dto/order-response.dto";
 import { ApiErrorResponse } from "../../common/dto/api-response.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { OrderBranchAccessGuard } from "../../common/guards/order-branch-access.guard";
@@ -60,6 +66,33 @@ export class OrdersController {
     return this.ordersService.create(dto, req.user!);
   }
 
+  @Get()
+  @ApiOperation({
+    summary:
+      "Danh sách đơn hàng (phân trang). Staff chỉ xem được đơn hàng của chi " +
+      "nhánh mình; admin xem toàn hệ thống hoặc lọc theo branch_id.",
+  })
+  @ApiResponse({ status: 200, type: PaginatedOrderResponseDto })
+  findAll(@Query() query: QueryOrderDto, @Req() req: Request) {
+    return this.ordersService.findAll(query, req.user!);
+  }
+
+  @Get(":id")
+  @UseGuards(OrderBranchAccessGuard)
+  @ApiOperation({
+    summary: "Chi tiết 1 đơn hàng (chỉ admin hoặc user cùng chi nhánh)",
+  })
+  @ApiResponse({ status: 200, type: OrderResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: "Không cùng chi nhánh và không phải admin",
+    type: ApiErrorResponse,
+  })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  findOne(@Param("id", ParseIntIdPipe) id: number) {
+    return this.ordersService.findOne(id);
+  }
+
   @Patch(":id/confirm-payment")
   @UseGuards(OrderBranchAccessGuard)
   @HttpCode(HttpStatus.OK)
@@ -89,5 +122,29 @@ export class OrdersController {
   })
   confirmPayment(@Param("id", ParseIntIdPipe) id: number) {
     return this.ordersService.confirmPayment(id);
+  }
+
+  @Patch(":id/cancel")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Hủy đơn hàng - hoàn lại tồn kho (transaction + row-lock, xem comment " +
+      "OrdersService.cancel() về thứ tự khóa). Chỉ admin hoặc chính người tạo " +
+      "đơn (created_by) mới được hủy.",
+  })
+  @ApiResponse({ status: 200, type: OrderResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: "Không phải admin và không phải người tạo đơn",
+    type: ApiErrorResponse,
+  })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  @ApiResponse({
+    status: 409,
+    description: "Đơn hàng đã được hủy trước đó (ORDER_ALREADY_CANCELLED)",
+    type: ApiErrorResponse,
+  })
+  cancel(@Param("id", ParseIntIdPipe) id: number, @Req() req: Request) {
+    return this.ordersService.cancel(id, req.user!);
   }
 }
