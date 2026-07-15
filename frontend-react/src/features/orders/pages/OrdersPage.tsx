@@ -24,7 +24,19 @@ export default function OrdersPage() {
     <span className="badge badge-warning">Chờ xác nhận</span>;
 
   const methodLabel = (m: string) =>
-    m === "cash" ? "💵 Tiền mặt" : m === "card" ? "💳 Thẻ" : "📱 Chuyển khoản";
+    m === "cash" ? (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>payments</span> Tiền mặt
+      </span>
+    ) : m === "card" ? (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>credit_card</span> Thẻ
+      </span>
+    ) : (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>qr_code_2</span> ZaloPay
+      </span>
+    );
 
   return (
     <div className="animate-fade-in">
@@ -74,23 +86,23 @@ export default function OrdersPage() {
                         {order.payment_status === "pending" && order.status !== "cancelled" && (
                           <button
                             className="btn btn-success"
-                            style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                            style={{ padding: "4px 10px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
                             onClick={() => confirmMutation.mutate(order.id)}
                           >
-                            Xác nhận TT
+                            <span className="material-symbols-outlined" style={{ fontSize: "0.95rem" }}>done</span> Xác nhận TT
                           </button>
                         )}
                         {order.status !== "cancelled" && (isAdmin || order.created_by === user?.id) && (
                           <button
                             className="btn btn-danger"
-                            style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                            style={{ padding: "4px 10px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
                             onClick={() => {
                               if (window.confirm("Bạn có chắc muốn hủy đơn hàng này?")) {
                                 cancelMutation.mutate(order.id);
                               }
                             }}
                           >
-                            Hủy
+                            <span className="material-symbols-outlined" style={{ fontSize: "0.95rem" }}>close</span> Hủy
                           </button>
                         )}
                       </div>

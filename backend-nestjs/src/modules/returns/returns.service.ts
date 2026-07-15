@@ -36,8 +36,6 @@ export class ReturnsService {
         );
       }
 
-      // Không lọc deleted_at trên order: dòng hàng cũ vẫn có thể thuộc 1 đơn
-      // hàng hợp lệ dù sản phẩm liên quan đã bị soft-delete sau này.
       const order = await orderRepo.findOne({
         where: { id: orderItem.orderId },
       });
@@ -73,9 +71,6 @@ export class ReturnsService {
         );
       }
 
-      // refund_amount LUÔN do server tính từ unit_price snapshot của
-      // order_item - không nhận trực tiếp từ client (Mục 4: không tin dữ
-      // liệu tiền tệ do client tự truyền).
       const refundAmount = Number(orderItem.unitPrice) * dto.quantity;
 
       const entity = returnRepo.create({
@@ -89,9 +84,6 @@ export class ReturnsService {
       return returnRepo.save(entity);
     });
 
-    // Quyết định nghiệp vụ đã chốt (Ngày 14 DoD): trả hàng KHÔNG tự động
-    // cộng lại stock_quantity, nên không cần evict cache products ở đây.
-
     return this.toDto(saved);
   }
 
@@ -104,6 +96,9 @@ export class ReturnsService {
       reason: ret.reason,
       created_by: ret.createdBy,
       created_at: ret.createdAt,
+      zalopay_m_refund_id: ret.zalopayMRefundId ?? null,
+      zalopay_refund_id: ret.zalopayRefundId ?? null,
+      zalopay_refund_status: ret.zalopayRefundStatus ?? null,
     };
   }
 }

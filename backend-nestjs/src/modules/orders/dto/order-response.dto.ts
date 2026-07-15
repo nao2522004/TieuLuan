@@ -72,6 +72,12 @@ export class OrderDataDto {
       "Ảnh QR base64 PNG (data URI) render sẵn từ qr_content cho FE.",
   })
   qr_code?: string | null;
+
+  @ApiPropertyOptional({ example: "240715_2553_123456" })
+  zalopay_app_trans_id?: string | null;
+
+  @ApiPropertyOptional({ example: "240715150000123" })
+  zalopay_zp_trans_id?: string | null;
 }
 
 export class OrderResponseDto {

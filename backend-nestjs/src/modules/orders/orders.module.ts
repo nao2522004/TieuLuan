@@ -11,6 +11,7 @@ import { UsersModule } from "../users/users.module";
 import { ProductsModule } from "../products/products.module";
 import { ShiftsModule } from "../shifts/shifts.module";
 import { BranchesModule } from "../branches/branches.module";
+import { ZaloPayModule } from "../zalopay/zalopay.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { BranchesModule } from "../branches/branches.module";
     ProductsModule,
     ShiftsModule,
     BranchesModule,
+    ZaloPayModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService, OrderBranchAccessGuard],

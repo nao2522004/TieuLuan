@@ -26,6 +26,15 @@ export class ReturnDto {
 
   @ApiProperty({ example: "2026-07-14T10:00:00.000Z" })
   created_at: Date;
+
+  @ApiProperty({ example: "240715_2553_123456789", nullable: true })
+  zalopay_m_refund_id?: string | null;
+
+  @ApiProperty({ example: "240715150000456", nullable: true })
+  zalopay_refund_id?: string | null;
+
+  @ApiProperty({ example: "pending", nullable: true })
+  zalopay_refund_status?: string | null;
 }
 
 export class ReturnResponseDto {

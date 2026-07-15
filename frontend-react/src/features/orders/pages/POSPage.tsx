@@ -4,6 +4,7 @@ import { useProductBarcodeQuery } from "@/features/products/api/products.queries
 import { useCreateOrderMutation, useConfirmPaymentMutation } from "../api/orders.queries";
 import type { CartItem, Order } from "../types";
 import { notify } from "@/lib/notify";
+import { ordersApi } from "../api/orders.api";
 
 export default function POSPage() {
   const { activeShift } = useShiftStore();
@@ -86,6 +87,32 @@ export default function POSPage() {
     await confirmPaymentMutation.mutateAsync(orderId);
     setCompletedOrder(null);
   };
+
+  // Polling order status if it's transfer (ZaloPay) and pending
+  useEffect(() => {
+    if (!completedOrder || completedOrder.payment_status !== "pending" || completedOrder.payment_method !== "transfer") {
+      return;
+    }
+
+    let isSubscribed = true;
+    const intervalId = setInterval(async () => {
+      try {
+        const freshOrder = await ordersApi.getOrderById(completedOrder.id);
+        if (isSubscribed && freshOrder && freshOrder.payment_status === "paid") {
+          setCompletedOrder(freshOrder);
+          notify.success("Thanh toán ZaloPay thành công!");
+          clearInterval(intervalId);
+        }
+      } catch (error) {
+        console.error("Lỗi khi polling trạng thái đơn hàng:", error);
+      }
+    }, 3000);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+    };
+  }, [completedOrder]);
 
   return (
     <div className="pos-layout">
@@ -209,10 +236,22 @@ export default function POSPage() {
                     key={m}
                     type="button"
                     className={`btn ${paymentMethod === m ? "btn-primary" : "btn-secondary"}`}
-                    style={{ flex: 1, fontSize: "0.85rem" }}
+                    style={{ flex: 1, fontSize: "0.85rem", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                     onClick={() => setPaymentMethod(m)}
                   >
-                    {m === "cash" ? "💵 Mặt" : m === "card" ? "💳 Thẻ" : "📱 QR"}
+                    {m === "cash" ? (
+                      <>
+                        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>payments</span> Tiền mặt
+                      </>
+                    ) : m === "card" ? (
+                      <>
+                        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>credit_card</span> Thẻ
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>qr_code_2</span> ZaloPay
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -220,20 +259,28 @@ export default function POSPage() {
 
             <button
               className="btn btn-success"
-              style={{ width: "100%", padding: "14px", fontSize: "1rem", marginTop: "8px" }}
+              style={{ width: "100%", padding: "14px", fontSize: "1rem", marginTop: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               onClick={handleCheckout}
               disabled={cart.length === 0 || createOrderMutation.isPending || !activeShift}
             >
-              {createOrderMutation.isPending ? "⏳ Đang xử lý..." : "✅ Thanh toán"}
+              {createOrderMutation.isPending ? (
+                <>
+                  <span className="material-symbols-outlined">hourglass_empty</span> Đang xử lý...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined">check_circle</span> Xác nhận Thanh toán
+                </>
+              )}
             </button>
 
             <button
               className="btn btn-secondary"
-              style={{ width: "100%", padding: "10px", fontSize: "0.9rem", marginTop: "8px" }}
+              style={{ width: "100%", padding: "10px", fontSize: "0.9rem", marginTop: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               onClick={() => { setCart([]); setDiscount(0); }}
               disabled={cart.length === 0}
             >
-              🗑️ Hủy giỏ hàng
+              <span className="material-symbols-outlined">delete</span> Hủy giỏ hàng
             </button>
           </div>
         </div>
@@ -243,29 +290,65 @@ export default function POSPage() {
       {completedOrder && (
         <div className="modal-overlay">
           <div className="modal-box animate-slide-in" style={{ maxWidth: "480px" }}>
-            <div className="modal-title-bar">
-              <h3>{completedOrder.payment_status === "paid" ? "✅ Thanh toán thành công!" : "📱 Chờ xác nhận VietQR"}</h3>
+            <div className="modal-title-bar" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="material-symbols-outlined" style={{ color: completedOrder.payment_status === "paid" ? "var(--success)" : "var(--warning)" }}>
+                {completedOrder.payment_status === "paid" ? "check_circle" : "hourglass_top"}
+              </span>
+              <h3>{completedOrder.payment_status === "paid" ? "Thanh toán thành công!" : "Chờ thanh toán ZaloPay"}</h3>
             </div>
             <div className="modal-content" style={{ textAlign: "center" }}>
               <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", textAlign: "left" }}>
                 <p><strong>Mã đơn hàng:</strong> #{completedOrder.id}</p>
                 <p><strong>Tổng tiền:</strong> {completedOrder.total_amount.toLocaleString("vi-VN")} đ</p>
-                <p><strong>Phương thức:</strong> {completedOrder.payment_method === "cash" ? "Tiền mặt" : completedOrder.payment_method === "card" ? "Thẻ" : "Chuyển khoản"}</p>
+                <p><strong>Phương thức:</strong> {completedOrder.payment_method === "cash" ? "Tiền mặt" : completedOrder.payment_method === "card" ? "Thẻ" : "ZaloPay QR"}</p>
               </div>
-              {completedOrder.qr_code && (
+              {completedOrder.qr_code && completedOrder.payment_status === "pending" && (
                 <div style={{ marginBottom: "16px" }}>
-                  <p style={{ marginBottom: "8px", color: "var(--text-secondary)" }}>Quét mã QR để thanh toán:</p>
-                  <img src={completedOrder.qr_code} alt="VietQR Code" style={{ width: "220px", height: "220px", borderRadius: "8px", border: "4px solid white" }} />
+                  <p style={{ marginBottom: "8px", color: "var(--text-secondary)" }}>Quét mã QR bằng ứng dụng ZaloPay hoặc Ngân hàng:</p>
+                  <div style={{ display: "inline-block", background: "white", padding: "8px", borderRadius: "12px", border: "1px solid var(--border-color)", margin: "8px 0" }}>
+                    <img src={completedOrder.qr_code} alt="ZaloPay QR Code" style={{ width: "220px", height: "220px", display: "block" }} />
+                  </div>
+                  {completedOrder.qr_content && (
+                    <div style={{ marginTop: "16px" }}>
+                      <a
+                        href={completedOrder.qr_content}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-primary"
+                        style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none" }}
+                      >
+                        <span className="material-symbols-outlined">open_in_new</span> Mở cổng thanh toán ZaloPay
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+              {completedOrder.payment_status === "paid" && (
+                <div style={{ padding: "20px 0", color: "var(--success)" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "4rem", marginBottom: "8px" }}>check_circle</span>
+                  <p style={{ fontWeight: "600", fontSize: "1.1rem" }}>Đã nhận được thanh toán từ ZaloPay!</p>
                 </div>
               )}
             </div>
             <div className="modal-footer">
               {completedOrder.payment_status === "pending" && (
-                <button className="btn btn-success" onClick={() => handleConfirmPayment(completedOrder.id)} disabled={confirmPaymentMutation.isPending}>
-                  {confirmPaymentMutation.isPending ? "⏳ Đang xác nhận..." : "✅ Xác nhận đã nhận tiền"}
+                <button
+                  className="btn btn-success"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  onClick={() => handleConfirmPayment(completedOrder.id)}
+                  disabled={confirmPaymentMutation.isPending}
+                >
+                  <span className="material-symbols-outlined">payments</span>
+                  {confirmPaymentMutation.isPending ? "Đang xác nhận..." : "Xác nhận nhận tiền mặt"}
                 </button>
               )}
-              <button className="btn btn-secondary" onClick={() => setCompletedOrder(null)}>Đóng</button>
+              <button
+                className="btn btn-secondary"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                onClick={() => setCompletedOrder(null)}
+              >
+                <span className="material-symbols-outlined">close</span> Đóng
+              </button>
             </div>
           </div>
         </div>

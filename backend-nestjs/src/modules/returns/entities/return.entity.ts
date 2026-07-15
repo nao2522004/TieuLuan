@@ -43,4 +43,13 @@ export class Return {
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;
+
+  @Column({ name: "zalopay_m_refund_id", type: "varchar", length: 50, nullable: true })
+  zalopayMRefundId: string | null;
+
+  @Column({ name: "zalopay_refund_id", type: "varchar", length: 50, nullable: true })
+  zalopayRefundId: string | null;
+
+  @Column({ name: "zalopay_refund_status", type: "varchar", length: 20, nullable: true })
+  zalopayRefundStatus: string | null;
 }

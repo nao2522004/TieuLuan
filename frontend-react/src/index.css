@@ -48,6 +48,12 @@
   color-scheme: dark;
 }
 
+.material-symbols-outlined {
+  vertical-align: middle;
+  line-height: 1;
+  font-size: 1.25rem;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

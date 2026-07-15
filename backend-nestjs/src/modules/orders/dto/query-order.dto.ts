@@ -31,7 +31,10 @@ export class QueryOrderDto {
   @IsPositive({ message: "phải là số nguyên dương" })
   branch_id?: number;
 
-  @ApiPropertyOptional({ example: "completed", enum: ["completed", "cancelled"] })
+  @ApiPropertyOptional({
+    example: "completed",
+    enum: ["completed", "cancelled"],
+  })
   @IsOptional()
   @IsIn(["completed", "cancelled"], {
     message: "chỉ chấp nhận 'completed' hoặc 'cancelled'",

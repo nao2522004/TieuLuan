@@ -20,6 +20,8 @@ export interface Order {
   updated_at: string;
   qr_content: string | null;
   qr_code: string | null;
+  zalopay_app_trans_id: string | null;
+  zalopay_zp_trans_id: string | null;
 }
 
 export interface CreateOrderItemPayload {

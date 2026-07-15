@@ -92,4 +92,10 @@ export class Order {
 
   @Column({ name: "deleted_at", type: "timestamptz", nullable: true })
   deletedAt: Date | null;
+
+  @Column({ name: "zalopay_app_trans_id", type: "varchar", length: 50, nullable: true })
+  zalopayAppTransId: string | null;
+
+  @Column({ name: "zalopay_zp_trans_id", type: "varchar", length: 50, nullable: true })
+  zalopayZpTransId: string | null;
 }

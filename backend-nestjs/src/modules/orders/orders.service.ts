@@ -13,10 +13,9 @@ import { AuthUser } from "../../common/guards/jwt-auth.guard";
 import { ShiftsService } from "../shifts/shifts.service";
 import { ProductsService } from "../products/products.service";
 import { BranchesService } from "../branches/branches.service";
-import {
-  buildVietQrPayload,
-  generateVietQrImage,
-} from "../../common/utils/vietqr.util";
+import { ZaloPayService } from "../zalopay/zalopay.service";
+import * as QRCode from "qrcode";
+import { Logger } from "@nestjs/common";
 
 interface LineItem {
   productId: number;
@@ -31,6 +30,8 @@ interface QrResult {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
@@ -41,6 +42,7 @@ export class OrdersService {
     private readonly shiftsService: ShiftsService,
     private readonly productsService: ProductsService,
     private readonly branchesService: BranchesService,
+    private readonly zaloPayService: ZaloPayService,
   ) {}
 
   async create(dto: CreateOrderDto, user: AuthUser): Promise<OrderDataDto> {
@@ -56,33 +58,6 @@ export class OrdersService {
     }
 
     const isTransfer = dto.payment_method === "transfer";
-    let bankInfo: {
-      bankBin: string;
-      bankAccountNo: string;
-      bankAccountName: string;
-    } | null = null;
-
-    if (isTransfer) {
-      const branch = await this.branchesService.findOne(openShift.branchId);
-      if (
-        !branch.bank_bin ||
-        !branch.bank_account_no ||
-        !branch.bank_account_name
-      ) {
-        throw new BusinessException(
-          "ORDER_BRANCH_NO_BANK_INFO",
-          400,
-          "Chi nhánh chưa cấu hình thông tin tài khoản nhận tiền (bank_bin/" +
-            "bank_account_no/bank_account_name), không thể tạo đơn chuyển khoản.",
-        );
-      }
-      bankInfo = {
-        bankBin: branch.bank_bin,
-        bankAccountNo: branch.bank_account_no,
-        bankAccountName: branch.bank_account_name,
-      };
-    }
-
     const paymentStatus = isTransfer ? "pending" : "paid";
 
     const sortedItems = [...dto.items].sort(
@@ -183,22 +158,80 @@ export class OrdersService {
     }
 
     let qr: QrResult | undefined;
-    if (isTransfer && bankInfo) {
-      const content = buildVietQrPayload({
-        bankBin: bankInfo.bankBin,
-        bankAccountNo: bankInfo.bankAccountNo,
-        bankAccountName: bankInfo.bankAccountName,
-        amount: Number(order.totalAmount),
-        orderId: order.id,
-      });
-      const image = await generateVietQrImage(content);
-      qr = { content, image };
+    if (isTransfer) {
+      try {
+        const zaloPayResult = await this.zaloPayService.createOrder({
+          app_user: String(user.id),
+          amount: Number(order.totalAmount),
+          description: `DH${order.id}`,
+          embed_data: { order_id: order.id },
+          item: items.map((it) => ({
+            id: it.productId,
+            quantity: it.quantity,
+            price: Number(it.unitPrice),
+          })),
+        });
+
+        // Lưu app_trans_id vào DB để đối chiếu
+        order.zalopayAppTransId = zaloPayResult.app_trans_id;
+        await this.ordersRepository.update(order.id, {
+          zalopayAppTransId: zaloPayResult.app_trans_id,
+        });
+
+        const orderUrl = zaloPayResult.order_url ?? "";
+        const image = await QRCode.toDataURL(orderUrl, {
+          errorCorrectionLevel: "M",
+          margin: 1,
+          width: 300,
+        });
+
+        qr = {
+          content: orderUrl,
+          image: image as string,
+        };
+      } catch (error) {
+        this.logger.error(
+          "Failed to create ZaloPay order, rolling back DB transaction...",
+          error,
+        );
+
+        // Hoàn lại kho và hủy đơn nếu ZaloPay API lỗi
+        await this.dataSource.transaction(async (manager) => {
+          const orderRepo = manager.getRepository(Order);
+          const productRepo = manager.getRepository(Product);
+
+          for (const item of items) {
+            const product = await productRepo.findOne({
+              where: { id: item.productId },
+            });
+            if (product) {
+              product.stockQuantity += item.quantity;
+              await productRepo.save(product);
+            }
+          }
+
+          order.status = "cancelled";
+          await orderRepo.save(order);
+        });
+
+        for (const item of items) {
+          try {
+            await this.productsService.evictCacheForProduct(item.productId);
+          } catch {}
+        }
+
+        throw new BusinessException(
+          "ZALOPAY_CREATE_ERROR",
+          500,
+          `Không thể tạo giao dịch ZaloPay: ${error.message || error}`,
+        );
+      }
     }
 
     return this.toDto(order, items, qr);
   }
 
-  async confirmPayment(id: number): Promise<OrderDataDto> {
+  async confirmPayment(id: number, user: AuthUser): Promise<OrderDataDto> {
     const { order, items } = await this.dataSource.transaction(
       async (manager) => {
         const orderRepo = manager.getRepository(Order);
@@ -230,6 +263,15 @@ export class OrdersService {
             "ORDER_ALREADY_PAID",
             409,
             "Đơn hàng này đã được xác nhận thanh toán trước đó.",
+          );
+        }
+
+        // Kiểm tra RBAC: chỉ admin hoặc chính người tạo đơn hàng mới được xác nhận
+        if (user.role !== "admin" && order.createdBy !== user.id) {
+          throw new BusinessException(
+            "FORBIDDEN",
+            403,
+            "Bạn không có quyền xác nhận thanh toán cho đơn hàng này.",
           );
         }
 
@@ -315,6 +357,67 @@ export class OrdersService {
   }
 
   async cancel(id: number, user: AuthUser): Promise<OrderDataDto> {
+    const orderToCheck = await this.ordersRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+    if (!orderToCheck) {
+      throw new BusinessException(
+        "ORDER_NOT_FOUND",
+        404,
+        "Không tìm thấy đơn hàng.",
+      );
+    }
+    if (orderToCheck.status === "cancelled") {
+      throw new BusinessException(
+        "ORDER_ALREADY_CANCELLED",
+        409,
+        "Đơn hàng này đã được hủy trước đó.",
+      );
+    }
+    if (user.role !== "admin" && orderToCheck.createdBy !== user.id) {
+      throw new BusinessException(
+        "FORBIDDEN",
+        403,
+        "Bạn không có quyền hủy đơn hàng này.",
+      );
+    }
+
+    // Nếu đơn chuyển khoản chưa thanh toán, thực hiện hủy đơn trên cổng ZaloPay trước
+    if (
+      orderToCheck.paymentMethod === "transfer" &&
+      orderToCheck.zalopayAppTransId &&
+      orderToCheck.paymentStatus !== "paid"
+    ) {
+      try {
+        const zpResult = await this.zaloPayService.cancelOrder({
+          app_trans_id: orderToCheck.zalopayAppTransId,
+        });
+        if (zpResult.return_code !== 1) {
+          if (zpResult.sub_return_code === -403) {
+            throw new BusinessException(
+              "ORDER_ALREADY_PAID",
+              409,
+              "Đơn hàng đã được thanh toán trên ZaloPay, không thể hủy. Vui lòng làm thủ tục hoàn tiền.",
+            );
+          } else if (zpResult.sub_return_code !== -101) {
+            // -101: không tồn tại đơn trên ZaloPay (hết hạn hoặc chưa tạo), bỏ qua lỗi này
+            throw new BusinessException(
+              "ZALOPAY_CANCEL_ERROR",
+              400,
+              `Không thể hủy giao dịch trên ZaloPay: ${zpResult.return_message} (Mã lỗi: ${zpResult.sub_return_code})`,
+            );
+          }
+        }
+      } catch (error) {
+        if (error instanceof BusinessException) {
+          throw error;
+        }
+        this.logger.warn(
+          `Lỗi khi gọi hủy đơn ZaloPay: ${error.message || error}`,
+        );
+      }
+    }
+
     const { order, items } = await this.dataSource.transaction(
       async (manager) => {
         const orderRepo = manager.getRepository(Order);
@@ -339,13 +442,6 @@ export class OrdersService {
             "ORDER_ALREADY_CANCELLED",
             409,
             "Đơn hàng này đã được hủy trước đó.",
-          );
-        }
-        if (user.role !== "admin" && lockedOrder.createdBy !== user.id) {
-          throw new BusinessException(
-            "FORBIDDEN",
-            403,
-            "Bạn không có quyền hủy đơn hàng này.",
           );
         }
 
@@ -429,6 +525,8 @@ export class OrdersService {
       updated_at: order.updatedAt,
       qr_content: qr?.content ?? null,
       qr_code: qr?.image ?? null,
+      zalopay_app_trans_id: order.zalopayAppTransId ?? null,
+      zalopay_zp_trans_id: order.zalopayZpTransId ?? null,
     };
   }
 }

@@ -120,8 +120,8 @@ export class OrdersController {
       "Đơn hàng đã được xác nhận thanh toán trước đó (ORDER_ALREADY_PAID)",
     type: ApiErrorResponse,
   })
-  confirmPayment(@Param("id", ParseIntIdPipe) id: number) {
-    return this.ordersService.confirmPayment(id);
+  confirmPayment(@Param("id", ParseIntIdPipe) id: number, @Req() req: Request) {
+    return this.ordersService.confirmPayment(id, req.user!);
   }
 
   @Patch(":id/cancel")

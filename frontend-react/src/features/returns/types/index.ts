@@ -6,6 +6,9 @@ export interface Return {
   reason: string | null;
   created_by: number;
   created_at: string;
+  zalopay_m_refund_id: string | null;
+  zalopay_refund_id: string | null;
+  zalopay_refund_status: string | null;
 }
 
 export interface CreateReturnPayload {

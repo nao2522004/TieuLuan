@@ -67,6 +67,34 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   PRODUCT_EXPIRY_ALERT_DAYS: number;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.app-id": string;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.mac-key": string;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.refund-key": string;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.create-order-url": string;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.query-order-url": string;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.server-url": string;
+
+  @IsString()
+  @IsNotEmpty()
+  "zalopay.client-url": string;
 }
 
 export function validate(config: Record<string, unknown>) {

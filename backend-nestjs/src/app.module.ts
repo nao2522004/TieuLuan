@@ -26,6 +26,8 @@ import { ShiftsModule } from "./modules/shifts/shifts.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { Order } from "./modules/orders/entities/order.entity";
 import { OrderItem } from "./modules/orders/entities/order-item.entity";
+import { ZaloPayModule } from "./modules/zalopay/zalopay.module";
+import { ReportsModule } from "./modules/reports/reports.module";
 
 @Module({
   imports: [
@@ -74,6 +76,8 @@ import { OrderItem } from "./modules/orders/entities/order-item.entity";
     InventoryModule,
     ShiftsModule,
     OrdersModule,
+    ZaloPayModule,
+    ReportsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
