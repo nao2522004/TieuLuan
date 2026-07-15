@@ -8,6 +8,9 @@ export interface GetOrdersParams {
   branch_id?: number;
   status?: "completed" | "cancelled";
   payment_status?: "paid" | "pending";
+  from_date?: string;
+  to_date?: string;
+  created_by?: number;
 }
 
 export const ordersApi = {

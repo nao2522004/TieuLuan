@@ -37,4 +37,12 @@ export class OrderItem {
 
   @Column({ name: "unit_price", type: "numeric", precision: 12, scale: 2 })
   unitPrice: number;
+
+  @Column({
+    name: "product_name",
+    type: "varchar",
+    length: 200,
+    nullable: true,
+  })
+  productName: string | null;
 }

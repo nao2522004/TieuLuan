@@ -8,6 +8,15 @@ export class OrderItemDto {
   @ApiProperty({ example: 1 })
   product_id: number;
 
+  @ApiProperty({
+    example: "Nước suối Lavie 500ml",
+    nullable: true,
+    description:
+      "Tên sản phẩm tại thời điểm tạo đơn (snapshot). " +
+      "NULL nếu đơn hàng được tạo trước khi có tính năng này.",
+  })
+  product_name: string | null;
+
   @ApiProperty({ example: 2 })
   quantity: number;
 
@@ -17,6 +26,7 @@ export class OrderItemDto {
   })
   unit_price: number;
 }
+
 
 export class OrderDataDto {
   @ApiProperty({ example: 1 })

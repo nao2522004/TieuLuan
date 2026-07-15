@@ -5,8 +5,10 @@ import { Shift } from "./entities/shift.entity";
 import { Order } from "../orders/entities/order.entity";
 import { OpenShiftDto } from "./dto/open-shift.dto";
 import { CloseShiftDto } from "./dto/close-shift.dto";
+import { QueryShiftDto } from "./dto/query-shift.dto";
 import { ShiftDataDto } from "./dto/shift-response.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
+import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { BranchesService } from "../branches/branches.service";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 
@@ -99,6 +101,60 @@ export class ShiftsService {
 
     const saved = await this.shiftsRepository.save(shift);
     return this.toDto(saved);
+  }
+
+  async findAll(
+    query: QueryShiftDto,
+    user: AuthUser,
+  ): Promise<{ data: ShiftDataDto[]; meta: PaginationMeta }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    const qb = this.shiftsRepository.createQueryBuilder("s");
+
+    // Phân quyền chi nhánh:
+    // Staff chỉ được xem các ca của chi nhánh mình.
+    // Admin xem được tất cả các chi nhánh, hoặc lọc theo query.branch_id nếu có.
+    if (user.role !== "admin") {
+      if (user.branchId) {
+        qb.andWhere("s.branch_id = :userBranchId", { userBranchId: user.branchId });
+      } else {
+        // Staff không có branch_id thì chỉ xem được ca của chính mình
+        qb.andWhere("s.user_id = :userId", { userId: user.id });
+      }
+    } else if (query.branch_id) {
+      qb.andWhere("s.branch_id = :branchId", { branchId: query.branch_id });
+    }
+
+    // Bộ lọc theo nhân viên
+    if (query.user_id) {
+      qb.andWhere("s.user_id = :userId", { userId: query.user_id });
+    }
+
+    // Bộ lọc theo trạng thái ca: 'open' | 'closed'
+    if (query.status === "open") {
+      qb.andWhere("s.closed_at IS NULL");
+    } else if (query.status === "closed") {
+      qb.andWhere("s.closed_at IS NOT NULL");
+    }
+
+    qb.orderBy("s.id", "DESC")
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    const data = rows.map((s) => this.toDto(s));
+
+    return {
+      data,
+      meta: {
+        current_page: page,
+        limit,
+        total_items: total,
+        total_pages: Math.ceil(total / limit) || 0,
+      },
+    };
   }
 
   async findOpenShiftForUser(userId: number): Promise<Shift | null> {

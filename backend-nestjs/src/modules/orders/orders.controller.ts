@@ -70,7 +70,8 @@ export class OrdersController {
   @ApiOperation({
     summary:
       "Danh sách đơn hàng (phân trang). Staff chỉ xem được đơn hàng của chi " +
-      "nhánh mình; admin xem toàn hệ thống hoặc lọc theo branch_id.",
+      "nhánh mình (và chỉ đơn của chính mình); admin xem toàn hệ thống hoặc lọc " +
+      "theo branch_id. Hỗ trợ filter: status, payment_status, from_date, to_date, created_by.",
   })
   @ApiResponse({ status: 200, type: PaginatedOrderResponseDto })
   findAll(@Query() query: QueryOrderDto, @Req() req: Request) {

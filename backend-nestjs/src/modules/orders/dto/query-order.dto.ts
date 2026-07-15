@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsIn, IsInt, IsOptional, IsPositive, Max, Min } from "class-validator";
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsPositive,
+  Max,
+  Min,
+} from "class-validator";
 
 export class QueryOrderDto {
   @ApiPropertyOptional({ example: 1, default: 1 })
@@ -47,4 +55,40 @@ export class QueryOrderDto {
     message: "chỉ chấp nhận 'pending' hoặc 'paid'",
   })
   payment_status?: "pending" | "paid";
+
+  @ApiPropertyOptional({
+    example: "2026-07-01",
+    description:
+      "Lọc đơn từ ngày (ISO date, ví dụ: 2026-07-01). Tính từ đầu ngày (00:00:00 UTC+7).",
+  })
+  @IsOptional()
+  @IsDateString(
+    {},
+    { message: "from_date phải là định dạng ngày hợp lệ (YYYY-MM-DD)" },
+  )
+  from_date?: string;
+
+  @ApiPropertyOptional({
+    example: "2026-07-15",
+    description:
+      "Lọc đơn đến ngày (ISO date, ví dụ: 2026-07-15). Tính đến cuối ngày (23:59:59 UTC+7).",
+  })
+  @IsOptional()
+  @IsDateString(
+    {},
+    { message: "to_date phải là định dạng ngày hợp lệ (YYYY-MM-DD)" },
+  )
+  to_date?: string;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description:
+      "Lọc đơn theo nhân viên tạo. Chỉ admin mới filter được đơn của người khác. " +
+      "Staff không truyền hoặc truyền ID của chính mình đều chỉ thấy đơn của mình.",
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: "phải là số nguyên" })
+  @IsPositive({ message: "phải là số nguyên dương" })
+  created_by?: number;
 }

@@ -1,8 +1,15 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { shiftsApi } from "./shifts.api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { shiftsApi, type GetShiftsParams } from "./shifts.api";
 import { useShiftStore } from "../stores/shift.store";
 import type { OpenShiftPayload, CloseShiftPayload } from "../types";
 import { notify } from "@/lib/notify";
+
+export function useShiftsQuery(params?: GetShiftsParams) {
+  return useQuery({
+    queryKey: ["shifts", params],
+    queryFn: () => shiftsApi.getShifts(params),
+  });
+}
 
 export function useOpenShiftMutation() {
   const queryClient = useQueryClient();
@@ -32,3 +39,4 @@ export function useCloseShiftMutation() {
     },
   });
 }
+

@@ -19,6 +19,7 @@ import { Logger } from "@nestjs/common";
 
 interface LineItem {
   productId: number;
+  productName: string;
   quantity: number;
   unitPrice: number;
 }
@@ -101,6 +102,7 @@ export class OrdersService {
 
           lineItems.push({
             productId: product.id,
+            productName: product.name,
             quantity: item.quantity,
             unitPrice: Number(product.salePrice),
           });
@@ -139,6 +141,7 @@ export class OrdersService {
           itemRepo.create({
             orderId: savedOrder.id,
             productId: li.productId,
+            productName: li.productName,
             quantity: li.quantity,
             unitPrice: li.unitPrice,
           }),
@@ -310,6 +313,31 @@ export class OrdersService {
     if (query.payment_status) {
       qb.andWhere("o.payment_status = :paymentStatus", {
         paymentStatus: query.payment_status,
+      });
+    }
+
+    // Lọc theo khoảng thời gian (UTC+7: from_date = 00:00 giờ VN, to_date = cuối ngày VN)
+    if (query.from_date) {
+      // Chuyển 'YYYY-MM-DD' sang đầu ngày UTC+7 (offset +07:00)
+      qb.andWhere("o.created_at >= :fromDate", {
+        fromDate: new Date(`${query.from_date}T00:00:00+07:00`),
+      });
+    }
+    if (query.to_date) {
+      // Cuối ngày UTC+7
+      qb.andWhere("o.created_at <= :toDate", {
+        toDate: new Date(`${query.to_date}T23:59:59+07:00`),
+      });
+    }
+
+    // Lọc theo nhân viên tạo đơn:
+    // - Staff: luôn chỉ xem đơn của chính mình (không cho filter người khác)
+    // - Admin: có thể filter theo created_by bất kỳ
+    if (user.role !== "admin") {
+      qb.andWhere("o.created_by = :selfId", { selfId: user.id });
+    } else if (query.created_by) {
+      qb.andWhere("o.created_by = :createdBy", {
+        createdBy: query.created_by,
       });
     }
 
@@ -518,6 +546,7 @@ export class OrdersService {
       items: items.map((it) => ({
         id: it.id,
         product_id: it.productId,
+        product_name: it.productName ?? null,
         quantity: it.quantity,
         unit_price: Number(it.unitPrice),
       })),

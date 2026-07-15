@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -17,7 +19,11 @@ import {
 import { ShiftsService } from "./shifts.service";
 import { OpenShiftDto } from "./dto/open-shift.dto";
 import { CloseShiftDto } from "./dto/close-shift.dto";
-import { ShiftResponseDto } from "./dto/shift-response.dto";
+import { QueryShiftDto } from "./dto/query-shift.dto";
+import {
+  ShiftResponseDto,
+  PaginatedShiftResponseDto,
+} from "./dto/shift-response.dto";
 import { ApiErrorResponse } from "../../common/dto/api-response.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { ParseIntIdPipe } from "../../common/pipes/parse-int-id.pipe";
@@ -72,5 +78,16 @@ export class ShiftsController {
     @Req() req: Request,
   ) {
     return this.shiftsService.close(id, dto, req.user!);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary:
+      "Danh sách tất cả ca làm việc (phân trang). Staff chỉ xem được ca của " +
+      "chi nhánh mình (hoặc chính mình); admin xem toàn hệ thống hoặc lọc theo branch_id.",
+  })
+  @ApiResponse({ status: 200, type: PaginatedShiftResponseDto })
+  findAll(@Query() query: QueryShiftDto, @Req() req: Request) {
+    return this.shiftsService.findAll(query, req.user!);
   }
 }
