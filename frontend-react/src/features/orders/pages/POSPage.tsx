@@ -1,0 +1,286 @@
+import { useState, useRef, useEffect } from "react";
+import { useShiftStore } from "@/features/shifts/stores/shift.store";
+import { useProductBarcodeQuery } from "@/features/products/api/products.queries";
+import { useCreateOrderMutation, useConfirmPaymentMutation } from "../api/orders.queries";
+import type { CartItem, Order } from "../types";
+import { notify } from "@/lib/notify";
+
+export default function POSPage() {
+  const { activeShift } = useShiftStore();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [fetchBarcode, setFetchBarcode] = useState("");
+  const [discount, setDiscount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
+  const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const barcodeRef = useRef<HTMLInputElement>(null);
+
+  const { data: scannedProduct, isFetching: isScanLoading, isError: isScanError } = useProductBarcodeQuery(
+    fetchBarcode,
+    activeShift?.branch_id,
+    !!fetchBarcode,
+  );
+
+  // When barcode query returns, add product to cart automatically
+  useEffect(() => {
+    if (!scannedProduct || !fetchBarcode) return;
+    setCart((prev) => {
+      const exists = prev.find((i) => i.product_id === scannedProduct.id);
+      if (exists) {
+        return prev.map((i) => i.product_id === scannedProduct.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [...prev, {
+        product_id: scannedProduct.id,
+        product_name: scannedProduct.name,
+        barcode: scannedProduct.barcode || "",
+        unit: scannedProduct.unit,
+        unit_price: scannedProduct.sale_price,
+        quantity: 1,
+      }];
+    });
+    setFetchBarcode("");
+  }, [scannedProduct, fetchBarcode]);
+
+  useEffect(() => {
+    if (isScanError && fetchBarcode) {
+      notify.error(`Không tìm thấy sản phẩm với barcode: ${fetchBarcode}`);
+      setFetchBarcode("");
+    }
+  }, [isScanError, fetchBarcode]);
+
+  const handleBarcodeSearch = () => {
+    if (!barcodeInput.trim()) return;
+    setFetchBarcode(barcodeInput.trim());
+    setBarcodeInput("");
+    setTimeout(() => barcodeRef.current?.focus(), 50);
+  };
+
+  const createOrderMutation = useCreateOrderMutation();
+  const confirmPaymentMutation = useConfirmPaymentMutation();
+
+  const updateQty = (pid: number, qty: number) => {
+    if (qty <= 0) {
+      setCart((prev) => prev.filter((i) => i.product_id !== pid));
+    } else {
+      setCart((prev) => prev.map((i) => i.product_id === pid ? { ...i, quantity: qty } : i));
+    }
+  };
+
+  const subtotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const total = Math.max(0, subtotal - discount);
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) { notify.error("Giỏ hàng trống!"); return; }
+    if (!activeShift) { notify.error("Bạn cần mở ca làm việc trước!"); return; }
+    const order = await createOrderMutation.mutateAsync({
+      payment_method: paymentMethod,
+      discount_amount: discount || undefined,
+      items: cart.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+    });
+    setCompletedOrder(order);
+    setCart([]);
+    setDiscount(0);
+  };
+
+  const handleConfirmPayment = async (orderId: number) => {
+    await confirmPaymentMutation.mutateAsync(orderId);
+    setCompletedOrder(null);
+  };
+
+  return (
+    <div className="pos-layout">
+      {!activeShift && (
+        <div className="card" style={{ marginBottom: "16px", borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.05)" }}>
+          ⚠️ <strong>Bạn chưa mở ca làm việc!</strong> Vui lòng vào trang <a href="/shifts">Quản lý Ca</a> để mở ca trước khi bán hàng.
+        </div>
+      )}
+
+      <div className="pos-grid">
+        {/* Left: Product Search & Cart */}
+        <div className="pos-left">
+          <div className="card" style={{ marginBottom: "16px" }}>
+            <h3 style={{ marginBottom: "12px", fontSize: "1rem" }}>🔍 Tìm sản phẩm theo mã vạch</h3>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                ref={barcodeRef}
+                type="text"
+                className="form-control"
+                placeholder="Nhập hoặc quét barcode, nhấn Enter..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleBarcodeSearch()}
+                disabled={!activeShift}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={handleBarcodeSearch}
+                disabled={!activeShift || isScanLoading}
+                style={{ flexShrink: 0 }}
+              >
+                {isScanLoading ? "⏳" : "Tìm"}
+              </button>
+            </div>
+          </div>
+
+          {/* Cart */}
+          <div className="card" style={{ flex: 1, padding: 0, overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-color)" }}>
+              <h3 style={{ fontSize: "1rem" }}>🛒 Giỏ hàng ({cart.length} sản phẩm)</h3>
+            </div>
+            {cart.length === 0 ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                Quét barcode để thêm sản phẩm vào giỏ hàng
+              </div>
+            ) : (
+              <div style={{ overflow: "auto" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Sản phẩm</th>
+                      <th>Đơn giá</th>
+                      <th>SL</th>
+                      <th>Thành tiền</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.map((item) => (
+                      <tr key={item.product_id}>
+                        <td>
+                          <div style={{ fontWeight: "600", fontSize: "0.9rem" }}>{item.product_name}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{item.barcode}</div>
+                        </td>
+                        <td>{item.unit_price.toLocaleString("vi-VN")} đ/{item.unit}</td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <button className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "1rem" }} onClick={() => updateQty(item.product_id, item.quantity - 1)}>−</button>
+                            <span style={{ minWidth: "24px", textAlign: "center", fontWeight: "600" }}>{item.quantity}</span>
+                            <button className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "1rem" }} onClick={() => updateQty(item.product_id, item.quantity + 1)}>+</button>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: "600", color: "var(--primary)" }}>
+                          {(item.unit_price * item.quantity).toLocaleString("vi-VN")} đ
+                        </td>
+                        <td>
+                          <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "0.8rem" }} onClick={() => updateQty(item.product_id, 0)}>Xóa</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Payment Panel */}
+        <div className="pos-right">
+          <div className="card">
+            <h3 style={{ marginBottom: "20px" }}>💰 Thanh toán</h3>
+
+            <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+              <div className="flex-row-between" style={{ marginBottom: "8px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Tạm tính:</span>
+                <span>{subtotal.toLocaleString("vi-VN")} đ</span>
+              </div>
+              <div className="flex-row-between" style={{ marginBottom: "8px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Giảm giá:</span>
+                <input
+                  type="number"
+                  className="form-control"
+                  style={{ width: "120px", padding: "4px 8px", fontSize: "0.9rem", textAlign: "right" }}
+                  value={discount}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                />
+              </div>
+              <div className="flex-row-between" style={{ paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
+                <span style={{ fontWeight: "700", fontSize: "1.1rem" }}>Tổng thanh toán:</span>
+                <span style={{ fontWeight: "800", fontSize: "1.4rem", color: "var(--primary)" }}>
+                  {total.toLocaleString("vi-VN")} đ
+                </span>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Phương thức thanh toán</label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {(["cash", "card", "transfer"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`btn ${paymentMethod === m ? "btn-primary" : "btn-secondary"}`}
+                    style={{ flex: 1, fontSize: "0.85rem" }}
+                    onClick={() => setPaymentMethod(m)}
+                  >
+                    {m === "cash" ? "💵 Mặt" : m === "card" ? "💳 Thẻ" : "📱 QR"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              className="btn btn-success"
+              style={{ width: "100%", padding: "14px", fontSize: "1rem", marginTop: "8px" }}
+              onClick={handleCheckout}
+              disabled={cart.length === 0 || createOrderMutation.isPending || !activeShift}
+            >
+              {createOrderMutation.isPending ? "⏳ Đang xử lý..." : "✅ Thanh toán"}
+            </button>
+
+            <button
+              className="btn btn-secondary"
+              style={{ width: "100%", padding: "10px", fontSize: "0.9rem", marginTop: "8px" }}
+              onClick={() => { setCart([]); setDiscount(0); }}
+              disabled={cart.length === 0}
+            >
+              🗑️ Hủy giỏ hàng
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Result Modal */}
+      {completedOrder && (
+        <div className="modal-overlay">
+          <div className="modal-box animate-slide-in" style={{ maxWidth: "480px" }}>
+            <div className="modal-title-bar">
+              <h3>{completedOrder.payment_status === "paid" ? "✅ Thanh toán thành công!" : "📱 Chờ xác nhận VietQR"}</h3>
+            </div>
+            <div className="modal-content" style={{ textAlign: "center" }}>
+              <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", textAlign: "left" }}>
+                <p><strong>Mã đơn hàng:</strong> #{completedOrder.id}</p>
+                <p><strong>Tổng tiền:</strong> {completedOrder.total_amount.toLocaleString("vi-VN")} đ</p>
+                <p><strong>Phương thức:</strong> {completedOrder.payment_method === "cash" ? "Tiền mặt" : completedOrder.payment_method === "card" ? "Thẻ" : "Chuyển khoản"}</p>
+              </div>
+              {completedOrder.qr_code && (
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={{ marginBottom: "8px", color: "var(--text-secondary)" }}>Quét mã QR để thanh toán:</p>
+                  <img src={completedOrder.qr_code} alt="VietQR Code" style={{ width: "220px", height: "220px", borderRadius: "8px", border: "4px solid white" }} />
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              {completedOrder.payment_status === "pending" && (
+                <button className="btn btn-success" onClick={() => handleConfirmPayment(completedOrder.id)} disabled={confirmPaymentMutation.isPending}>
+                  {confirmPaymentMutation.isPending ? "⏳ Đang xác nhận..." : "✅ Xác nhận đã nhận tiền"}
+                </button>
+              )}
+              <button className="btn btn-secondary" onClick={() => setCompletedOrder(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .pos-layout { display: flex; flex-direction: column; height: 100%; }
+        .pos-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; flex: 1; }
+        .pos-left { display: flex; flex-direction: column; gap: 16px; }
+        .pos-right { position: sticky; top: 86px; }
+        @media (max-width: 900px) {
+          .pos-grid { grid-template-columns: 1fr; }
+          .pos-right { position: static; }
+        }
+      `}</style>
+    </div>
+  );
+}

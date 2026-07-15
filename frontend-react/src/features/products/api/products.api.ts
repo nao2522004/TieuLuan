@@ -1,0 +1,51 @@
+import { apiClient } from "@/lib/api-client";
+import type { ApiSuccessResponse } from "@/types/api";
+import type { Product, ProductAlerts, CreateProductPayload, UpdateProductPayload } from "../types";
+
+export interface GetProductsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  branch_id?: number;
+  category_id?: number;
+}
+
+export const productsApi = {
+  getProducts: async (params?: GetProductsParams): Promise<ApiSuccessResponse<Product[]>> => {
+    const res = await apiClient.get<ApiSuccessResponse<Product[]>>("/products", { params });
+    return res as unknown as ApiSuccessResponse<Product[]>;
+  },
+
+  getProductById: async (id: number): Promise<Product> => {
+    const res = await apiClient.get<ApiSuccessResponse<Product>>(`/products/${id}`);
+    return (res as unknown as ApiSuccessResponse<Product>).data;
+  },
+
+  getProductByBarcode: async (code: string, branchId?: number): Promise<Product> => {
+    const res = await apiClient.get<ApiSuccessResponse<Product>>(`/products/barcode/${code}`, {
+      params: { branch_id: branchId },
+    });
+    return (res as unknown as ApiSuccessResponse<Product>).data;
+  },
+
+  getProductAlerts: async (branchId?: number): Promise<ProductAlerts> => {
+    const res = await apiClient.get<ApiSuccessResponse<ProductAlerts>>("/products/alerts", {
+      params: { branch_id: branchId },
+    });
+    return (res as unknown as ApiSuccessResponse<ProductAlerts>).data;
+  },
+
+  createProduct: async (payload: CreateProductPayload): Promise<Product> => {
+    const res = await apiClient.post<ApiSuccessResponse<Product>>("/products", payload);
+    return (res as unknown as ApiSuccessResponse<Product>).data;
+  },
+
+  updateProduct: async (id: number, payload: UpdateProductPayload): Promise<Product> => {
+    const res = await apiClient.patch<ApiSuccessResponse<Product>>(`/products/${id}`, payload);
+    return (res as unknown as ApiSuccessResponse<Product>).data;
+  },
+
+  deleteProduct: async (id: number): Promise<void> => {
+    await apiClient.delete(`/products/${id}`);
+  },
+};

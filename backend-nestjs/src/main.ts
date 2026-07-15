@@ -11,6 +11,7 @@ import { validationExceptionFactory } from "./common/validation/validation-excep
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors();
 
   app.useGlobalPipes(
     new ValidationPipe({
