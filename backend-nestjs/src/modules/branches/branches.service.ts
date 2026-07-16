@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { ILike, IsNull, Repository } from "typeorm";
+import { ILike, In, IsNull, Repository } from "typeorm";
 import { Branch } from "./entities/branch.entity";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { UpdateBranchDto } from "./dto/update-branch.dto";
@@ -41,6 +41,16 @@ export class BranchesService {
         total_pages: Math.ceil(total / limit) || 0,
       },
     };
+  }
+
+  async findNamesByIds(ids: number[]): Promise<Map<number, string>> {
+    const uniqueIds = [...new Set(ids)].filter((id) => id != null);
+    if (uniqueIds.length === 0) return new Map();
+    const rows = await this.branchesRepository.find({
+      where: { id: In(uniqueIds) },
+      select: ["id", "name"],
+    });
+    return new Map(rows.map((r) => [r.id, r.name]));
   }
 
   async findOne(id: number): Promise<BranchDto> {

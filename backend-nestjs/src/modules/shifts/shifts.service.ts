@@ -14,6 +14,7 @@ import {
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { BranchesService } from "../branches/branches.service";
+import { UsersService } from "../users/users.service";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 
 @Injectable()
@@ -24,6 +25,7 @@ export class ShiftsService {
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
     private readonly branchesService: BranchesService,
+    private readonly usersService: UsersService,
   ) {}
 
   async open(dto: OpenShiftDto, user: AuthUser): Promise<ShiftDataDto> {
@@ -35,7 +37,7 @@ export class ShiftsService {
         "branch_id: bắt buộc khi tài khoản không gắn với 1 chi nhánh cụ thể",
       );
     }
-    await this.branchesService.findOne(branchId);
+    const branch = await this.branchesService.findOne(branchId);
 
     const existingOpen = await this.shiftsRepository.findOne({
       where: { userId: user.id, closedAt: IsNull() },
@@ -61,7 +63,7 @@ export class ShiftsService {
       throw err;
     }
 
-    return this.toDto(saved);
+    return this.toDto(saved, branch.name, user.fullName);
   }
 
   async close(
@@ -104,7 +106,18 @@ export class ShiftsService {
     shift.closedAt = new Date();
 
     const saved = await this.shiftsRepository.save(shift);
-    return this.toDto(saved);
+
+    const userFullName =
+      shift.userId === user.id
+        ? user.fullName
+        : (await this.usersService.findNamesByIds([shift.userId])).get(
+            shift.userId,
+          );
+    const branchName = (
+      await this.branchesService.findNamesByIds([shift.branchId])
+    ).get(shift.branchId);
+
+    return this.toDto(saved, branchName, userFullName);
   }
 
   async findAll(
@@ -144,7 +157,15 @@ export class ShiftsService {
 
     const [rows, total] = await qb.getManyAndCount();
 
-    const data = rows.map((s) => this.toDto(s));
+    // Batch lookup tên - tránh N+1 query khi list nhiều ca
+    const { branchNames, userNames } = await this.loadNames(
+      rows.map((r) => r.branchId),
+      rows.map((r) => r.userId),
+    );
+
+    const data = rows.map((s) =>
+      this.toDto(s, branchNames.get(s.branchId), userNames.get(s.userId)),
+    );
 
     return {
       data,
@@ -206,8 +227,17 @@ export class ShiftsService {
       created_at: o.createdAt,
     }));
 
+    const { branchNames, userNames } = await this.loadNames(
+      [shift.branchId],
+      [shift.userId],
+    );
+
     return {
-      ...this.toDto(shift),
+      ...this.toDto(
+        shift,
+        branchNames.get(shift.branchId),
+        userNames.get(shift.userId),
+      ),
       orders_count: ordersCount,
       cash_orders_total: cashTotal,
       card_orders_total: cardTotal,
@@ -251,7 +281,29 @@ export class ShiftsService {
     );
   }
 
-  private toDto(shift: Shift): ShiftDataDto {
+  /**
+   * Batch lookup branch_name / user_full_name cho 1 lô shift, tránh N+1
+   * query khi trả list. Dùng chung cho findAll() và findOneDetail().
+   */
+  private async loadNames(
+    branchIds: number[],
+    userIds: number[],
+  ): Promise<{
+    branchNames: Map<number, string>;
+    userNames: Map<number, string>;
+  }> {
+    const [branchNames, userNames] = await Promise.all([
+      this.branchesService.findNamesByIds(branchIds),
+      this.usersService.findNamesByIds(userIds),
+    ]);
+    return { branchNames, userNames };
+  }
+
+  private toDto(
+    shift: Shift,
+    branchName?: string,
+    userFullName?: string,
+  ): ShiftDataDto {
     const closingCash =
       shift.closingCash != null ? Number(shift.closingCash) : null;
     const expectedCash =
@@ -260,7 +312,9 @@ export class ShiftsService {
     return {
       id: shift.id,
       branch_id: shift.branchId,
+      branch_name: branchName ?? null,
       user_id: shift.userId,
+      user_full_name: userFullName ?? null,
       opening_cash: Number(shift.openingCash),
       closing_cash: closingCash,
       expected_cash: expectedCash,

@@ -9,6 +9,7 @@ import { UserRole } from "../../modules/users/entities/user.entity";
 export interface AuthUser {
   id: number;
   email: string;
+  fullName: string;
   role: UserRole;
   branchId: number | null;
 }
@@ -60,6 +61,7 @@ export class JwtAuthGuard implements CanActivate {
     request.user = {
       id: user.id,
       email: user.email,
+      fullName: user.fullName,
       role: user.role,
       branchId: user.branchId ?? null,
     };

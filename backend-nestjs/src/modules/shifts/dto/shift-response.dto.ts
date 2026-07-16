@@ -8,8 +8,22 @@ export class ShiftDataDto {
   @ApiProperty({ example: 1 })
   branch_id: number;
 
+  @ApiProperty({
+    example: "Chi nhánh Quận 1",
+    nullable: true,
+    description: "Tên chi nhánh, hiển thị kèm branch_id để UI dễ đọc.",
+  })
+  branch_name: string | null;
+
   @ApiProperty({ example: 1 })
   user_id: number;
+
+  @ApiProperty({
+    example: "Nguyễn Văn A",
+    nullable: true,
+    description: "Tên nhân viên đứng ca, hiển thị kèm user_id để UI dễ đọc.",
+  })
+  user_full_name: string | null;
 
   @ApiProperty({ example: 500000 })
   opening_cash: number;
