@@ -5,6 +5,7 @@ import { useShiftStore } from "../stores/shift.store";
 import { useOpenShiftMutation, useCloseShiftMutation } from "../api/shifts.queries";
 import { useAuth } from "@/features/auth";
 import { useBranchesQuery } from "@/features/branches/api/branches.queries";
+import type { Shift } from "../types";
 
 // ─── Open Shift Modal ───────────────────────────────────────────────────
 const openSchema = z.object({
@@ -91,11 +92,11 @@ const closeSchema = z.object({
 type CloseFormValues = z.infer<typeof closeSchema>;
 
 interface CloseShiftModalProps {
+  shift: Shift;
   onClose: () => void;
 }
 
-export function CloseShiftModal({ onClose }: CloseShiftModalProps) {
-  const { activeShift } = useShiftStore();
+export function CloseShiftModal({ shift, onClose }: CloseShiftModalProps) {
   const mutation = useCloseShiftMutation();
 
   const { register, handleSubmit, formState: { errors } } = useForm<CloseFormValues>({
@@ -104,9 +105,8 @@ export function CloseShiftModal({ onClose }: CloseShiftModalProps) {
   });
 
   const onSubmit = async (values: CloseFormValues) => {
-    if (!activeShift) return;
     await mutation.mutateAsync({
-      id: activeShift.id,
+      id: shift.id,
       payload: {
         closing_cash: values.closing_cash,
         note: values.note || undefined,
@@ -119,23 +119,25 @@ export function CloseShiftModal({ onClose }: CloseShiftModalProps) {
     <div className="modal-overlay">
       <div className="modal-box animate-slide-in">
         <div className="modal-title-bar">
-          <h3>🔒 Đóng ca làm việc</h3>
+          <h3>🔒 Đóng ca làm việc #{shift.id}</h3>
           <button className="toggle-sidebar-btn" onClick={onClose} style={{ padding: "4px" }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           </button>
         </div>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="modal-content">
-            {activeShift && (
-              <div className="card" style={{ marginBottom: "16px", background: "rgba(99,102,241,0.05)", borderColor: "rgba(99,102,241,0.2)" }}>
-                <p style={{ margin: 0, fontSize: "0.9rem" }}>
-                  <strong>Quỹ đầu ca:</strong> {activeShift.opening_cash.toLocaleString("vi-VN")} đ
-                </p>
-                <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                  Ca ID #{activeShift.id} – Mở lúc {new Date(activeShift.opened_at).toLocaleTimeString("vi-VN")}
-                </p>
-              </div>
-            )}
+            <div className="card" style={{ marginBottom: "16px", background: "rgba(99,102,241,0.05)", borderColor: "rgba(99,102,241,0.2)" }}>
+              <p style={{ margin: 0, fontSize: "0.9rem" }}>
+                <strong>Chi nhánh:</strong> #{shift.branch_id} &nbsp;|&nbsp;
+                <strong>Nhân viên:</strong> #{shift.user_id}
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: "0.9rem" }}>
+                <strong>Quỹ đầu ca:</strong> {shift.opening_cash.toLocaleString("vi-VN")} đ
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                Mở lúc {new Date(shift.opened_at).toLocaleString("vi-VN")}
+              </p>
+            </div>
             <div className="form-group">
               <label htmlFor="closing_cash">Số tiền quỹ thực tế cuối ca (VND) *</label>
               <input id="closing_cash" type="number" className="form-control" {...register("closing_cash")} />

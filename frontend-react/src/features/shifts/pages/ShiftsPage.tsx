@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useShiftStore } from "../stores/shift.store";
 import { OpenShiftModal, CloseShiftModal } from "../components/ShiftModals";
+import { AllShiftsTable } from "../components/AllShiftsTable";
 
 export default function ShiftsPage() {
   const { activeShift } = useShiftStore();
@@ -30,7 +31,7 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      {/* Active Shift Card */}
+      {/* Active Shift Card — giữ nguyên như cũ */}
       {activeShift ? (
         <div className="card" style={{ borderColor: "rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.05)", marginBottom: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
@@ -56,7 +57,7 @@ export default function ShiftsPage() {
           </div>
         </div>
       ) : (
-        <div className="card" style={{ textAlign: "center", padding: "48px", borderColor: "rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.04)" }}>
+        <div className="card" style={{ textAlign: "center", padding: "48px", borderColor: "rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.04)", marginBottom: "24px" }}>
           <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🔒</div>
           <h3 style={{ marginBottom: "8px" }}>Chưa có ca làm việc nào đang mở</h3>
           <p>Nhấn nút <strong>Mở ca mới</strong> để bắt đầu ca làm việc trước khi bán hàng.</p>
@@ -66,9 +67,14 @@ export default function ShiftsPage() {
         </div>
       )}
 
+      {/* Bảng quản lý ca */}
+      <AllShiftsTable />
+
       {/* Modals */}
       {showOpenModal && <OpenShiftModal onClose={() => setShowOpenModal(false)} />}
-      {showCloseModal && <CloseShiftModal onClose={() => setShowCloseModal(false)} />}
+      {showCloseModal && activeShift && (
+        <CloseShiftModal shift={activeShift} onClose={() => setShowCloseModal(false)} />
+      )}
     </div>
   );
 }

@@ -11,6 +11,23 @@ export interface Shift {
   closed_at: string | null;
 }
 
+export interface ShiftOrderSummary {
+  id: number;
+  payment_method: "cash" | "card" | "transfer";
+  payment_status: "pending" | "paid";
+  status: "completed" | "cancelled";
+  total_amount: number;
+  created_at: string;
+}
+
+export interface ShiftDetail extends Shift {
+  orders_count: number;
+  cash_orders_total: number;
+  card_orders_total: number;
+  transfer_orders_total: number;
+  orders: ShiftOrderSummary[];
+}
+
 export interface OpenShiftPayload {
   opening_cash: number;
   branch_id?: number;

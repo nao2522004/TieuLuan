@@ -11,6 +11,14 @@ export function useShiftsQuery(params?: GetShiftsParams) {
   });
 }
 
+export function useShiftDetailQuery(id?: number) {
+  return useQuery({
+    queryKey: ["shifts", "detail", id],
+    queryFn: () => shiftsApi.getShiftById(id!),
+    enabled: !!id,
+  });
+}
+
 export function useOpenShiftMutation() {
   const queryClient = useQueryClient();
   const setActiveShift = useShiftStore((s) => s.setActiveShift);
@@ -27,16 +35,21 @@ export function useOpenShiftMutation() {
 
 export function useCloseShiftMutation() {
   const queryClient = useQueryClient();
+  const activeShift = useShiftStore((s) => s.activeShift);
   const setActiveShift = useShiftStore((s) => s.setActiveShift);
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: CloseShiftPayload }) =>
       shiftsApi.closeShift(id, payload),
-    onSuccess: () => {
-      setActiveShift(null);
+    onSuccess: (data) => {
+      if (activeShift?.id === data.id) {
+        setActiveShift(null);
+      }
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      queryClient.invalidateQueries({
+        queryKey: ["shifts", "detail", data.id],
+      });
       notify.success("Đóng ca làm việc thành công!");
     },
   });
 }
-
