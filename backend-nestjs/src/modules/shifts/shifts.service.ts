@@ -6,7 +6,11 @@ import { Order } from "../orders/entities/order.entity";
 import { OpenShiftDto } from "./dto/open-shift.dto";
 import { CloseShiftDto } from "./dto/close-shift.dto";
 import { QueryShiftDto } from "./dto/query-shift.dto";
-import { ShiftDataDto } from "./dto/shift-response.dto";
+import {
+  ShiftDataDto,
+  ShiftDetailDataDto,
+  ShiftOrderSummaryDto,
+} from "./dto/shift-response.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { BranchesService } from "../branches/branches.service";
@@ -112,26 +116,22 @@ export class ShiftsService {
 
     const qb = this.shiftsRepository.createQueryBuilder("s");
 
-    // Phân quyền chi nhánh:
-    // Staff chỉ được xem các ca của chi nhánh mình.
-    // Admin xem được tất cả các chi nhánh, hoặc lọc theo query.branch_id nếu có.
     if (user.role !== "admin") {
       if (user.branchId) {
-        qb.andWhere("s.branch_id = :userBranchId", { userBranchId: user.branchId });
+        qb.andWhere("s.branch_id = :userBranchId", {
+          userBranchId: user.branchId,
+        });
       } else {
-        // Staff không có branch_id thì chỉ xem được ca của chính mình
         qb.andWhere("s.user_id = :userId", { userId: user.id });
       }
     } else if (query.branch_id) {
       qb.andWhere("s.branch_id = :branchId", { branchId: query.branch_id });
     }
 
-    // Bộ lọc theo nhân viên
     if (query.user_id) {
       qb.andWhere("s.user_id = :userId", { userId: query.user_id });
     }
 
-    // Bộ lọc theo trạng thái ca: 'open' | 'closed'
     if (query.status === "open") {
       qb.andWhere("s.closed_at IS NULL");
     } else if (query.status === "closed") {
@@ -154,6 +154,65 @@ export class ShiftsService {
         total_items: total,
         total_pages: Math.ceil(total / limit) || 0,
       },
+    };
+  }
+
+  async findOneDetail(id: number, user: AuthUser): Promise<ShiftDetailDataDto> {
+    const shift = await this.findOrThrow(id);
+
+    if (user.role !== "admin") {
+      if (user.branchId) {
+        if (shift.branchId !== user.branchId) {
+          throw new BusinessException(
+            "FORBIDDEN",
+            403,
+            "Bạn không có quyền xem ca làm việc của chi nhánh khác.",
+          );
+        }
+      } else if (shift.userId !== user.id) {
+        throw new BusinessException(
+          "FORBIDDEN",
+          403,
+          "Bạn không có quyền xem ca làm việc này.",
+        );
+      }
+    }
+
+    const orders = await this.ordersRepository.find({
+      where: { shiftId: id, deletedAt: IsNull() },
+      order: { id: "ASC" },
+    });
+
+    let ordersCount = 0;
+    let cashTotal = 0;
+    let cardTotal = 0;
+    let transferTotal = 0;
+
+    for (const o of orders) {
+      if (o.status !== "completed") continue;
+      ordersCount += 1;
+      const amount = Number(o.totalAmount);
+      if (o.paymentMethod === "cash") cashTotal += amount;
+      else if (o.paymentMethod === "card") cardTotal += amount;
+      else if (o.paymentMethod === "transfer") transferTotal += amount;
+    }
+
+    const orderSummaries: ShiftOrderSummaryDto[] = orders.map((o) => ({
+      id: o.id,
+      payment_method: o.paymentMethod,
+      payment_status: o.paymentStatus,
+      status: o.status,
+      total_amount: Number(o.totalAmount),
+      created_at: o.createdAt,
+    }));
+
+    return {
+      ...this.toDto(shift),
+      orders_count: ordersCount,
+      cash_orders_total: cashTotal,
+      card_orders_total: cardTotal,
+      transfer_orders_total: transferTotal,
+      orders: orderSummaries,
     };
   }
 

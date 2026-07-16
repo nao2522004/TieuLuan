@@ -29,7 +29,8 @@ export class ShiftDataDto {
   @ApiProperty({
     example: 50000,
     nullable: true,
-    description: "closing_cash - expected_cash (dương = dư quỹ, âm = thiếu quỹ)",
+    description:
+      "closing_cash - expected_cash (dương = dư quỹ, âm = thiếu quỹ)",
   })
   cash_difference: number | null;
 
@@ -68,3 +69,60 @@ export class PaginatedShiftResponseDto {
   timestamp: string;
 }
 
+export class ShiftOrderSummaryDto {
+  @ApiProperty({ example: 15 })
+  id: number;
+
+  @ApiProperty({ example: "cash", enum: ["cash", "card", "transfer"] })
+  payment_method: string;
+
+  @ApiProperty({ example: "paid", enum: ["pending", "paid"] })
+  payment_status: string;
+
+  @ApiProperty({ example: "completed", enum: ["completed", "cancelled"] })
+  status: string;
+
+  @ApiProperty({ example: 55000 })
+  total_amount: number;
+
+  @ApiProperty({ example: "2026-07-15T08:10:00.000Z" })
+  created_at: Date;
+}
+
+export class ShiftDetailDataDto extends ShiftDataDto {
+  @ApiProperty({
+    example: 8,
+    description: "Số đơn hàng status='completed' phát sinh trong ca",
+  })
+  orders_count: number;
+
+  @ApiProperty({
+    example: 750000,
+    description:
+      "Tổng total_amount các đơn thanh toán bằng tiền mặt trong ca (dùng đối soát quỹ)",
+  })
+  cash_orders_total: number;
+
+  @ApiProperty({ example: 200000 })
+  card_orders_total: number;
+
+  @ApiProperty({ example: 300000 })
+  transfer_orders_total: number;
+
+  @ApiProperty({
+    type: [ShiftOrderSummaryDto],
+    description: "Danh sách đơn hàng thuộc ca này, sắp theo id tăng dần",
+  })
+  orders: ShiftOrderSummaryDto[];
+}
+
+export class ShiftDetailResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: ShiftDetailDataDto })
+  data: ShiftDetailDataDto;
+
+  @ApiProperty({ example: "2026-07-15T10:00:00.000Z" })
+  timestamp: string;
+}
