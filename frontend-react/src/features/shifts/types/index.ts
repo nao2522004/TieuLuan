@@ -1,7 +1,9 @@
 export interface Shift {
   id: number;
   branch_id: number;
+  branch_name: string | null; // 🆕
   user_id: number;
+  user_full_name: string | null; // 🆕
   opening_cash: number;
   closing_cash: number | null;
   expected_cash: number | null;
