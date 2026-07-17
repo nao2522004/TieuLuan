@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { In, IsNull, Repository } from "typeorm";
 import { User } from "./entities/user.entity";
 import { RolesService } from "../roles/roles.service";
+import { UserSummaryDto } from "./dto/user-response.dto";
 
 @Injectable()
 export class UsersService {
@@ -39,8 +40,12 @@ export class UsersService {
     });
   }
 
-  async findFiltered(filters: { branchId?: number; roleCode?: string }): Promise<User[]> {
-    const query = this.usersRepository.createQueryBuilder("u")
+  async findFiltered(filters: {
+    branchId?: number;
+    roleCode?: string;
+  }): Promise<UserSummaryDto[]> {
+    const query = this.usersRepository
+      .createQueryBuilder("u")
       .leftJoinAndSelect("u.role", "r")
       .where("u.deletedAt IS NULL")
       .andWhere("u.isActive = true");
@@ -53,7 +58,19 @@ export class UsersService {
       query.andWhere("r.code = :roleCode", { roleCode: filters.roleCode });
     }
 
-    return query.getMany();
+    const rows = await query.getMany();
+    return rows.map((u) => this.toSummaryDto(u));
+  }
+
+  private toSummaryDto(user: User): UserSummaryDto {
+    return {
+      id: user.id,
+      full_name: user.fullName,
+      email: user.email,
+      role: user.role.code,
+      branch_id: user.branchId,
+      is_active: user.isActive,
+    };
   }
 
   async create(data: {
@@ -63,7 +80,9 @@ export class UsersService {
     branchId?: number | null;
     roleCode?: string;
   }): Promise<User> {
-    const role = await this.rolesService.findByCodeOrThrow(data.roleCode ?? "cashier");
+    const role = await this.rolesService.findByCodeOrThrow(
+      data.roleCode ?? "cashier",
+    );
     const user = this.usersRepository.create({
       fullName: data.fullName,
       email: data.email,

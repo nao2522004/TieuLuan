@@ -1,4 +1,10 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn, OneToMany } from "typeorm";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryColumn,
+  OneToMany,
+} from "typeorm";
 import { ShiftUser } from "./shift-user.entity";
 
 @Entity("shifts")

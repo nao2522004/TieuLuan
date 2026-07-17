@@ -60,10 +60,16 @@ export function useCashiersQuery(branchId?: number) {
   return useQuery({
     queryKey: ["users", "cashiers", branchId],
     queryFn: async () => {
-      const res = await apiClient.get<ApiSuccessResponse<{ id: number; full_name: string }[]>>("/users", {
+      const res = await apiClient.get<
+        ApiSuccessResponse<{ id: number; full_name: string }[]>
+      >("/users", {
         params: { branch_id: branchId, role_code: "cashier" },
       });
-      return res.data.data;
+      return (
+        res as unknown as ApiSuccessResponse<
+          { id: number; full_name: string }[]
+        >
+      ).data;
     },
     enabled: !!branchId,
   });
