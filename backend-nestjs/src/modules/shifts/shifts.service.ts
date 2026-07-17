@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Repository } from "typeorm";
+import { IsNull, Repository, DataSource } from "typeorm";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
 import { Shift } from "./entities/shift.entity";
 import { ShiftUser } from "./entities/shift-user.entity";
 import { Order } from "../orders/entities/order.entity";
@@ -27,6 +27,8 @@ export class ShiftsService {
     private readonly shiftUsersRepository: Repository<ShiftUser>,
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly branchesService: BranchesService,
     private readonly usersService: UsersService,
   ) {}
@@ -138,53 +140,72 @@ export class ShiftsService {
     dto: CloseShiftDto,
     user: AuthUser,
   ): Promise<ShiftDataDto> {
-    const shift = await this.findOrThrow(id);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const shiftRepo = manager.getRepository(Shift);
 
-    if (user.role !== "admin" && shift.userId !== user.id) {
-      throw new BusinessException(
-        "FORBIDDEN",
-        403,
-        "Bạn không có quyền đóng ca làm việc này (chỉ Trưởng ca đã mở ca hoặc Admin mới được phép đóng).",
-      );
-    }
-    if (shift.closedAt) {
-      throw new BusinessException(
-        "SHIFT_ALREADY_CLOSED",
-        409,
-        "Ca làm việc này đã được đóng trước đó.",
-      );
-    }
+      const shift = await shiftRepo
+        .createQueryBuilder("s")
+        .setLock("pessimistic_write")
+        .where("s.id = :id", { id })
+        .getOne();
 
-    const cashRevenue = await this.ordersRepository
-      .createQueryBuilder("o")
-      .select("COALESCE(SUM(o.total_amount), 0)", "sum")
-      .where("o.shift_id = :id", { id })
-      .andWhere("o.payment_method = 'cash'")
-      .andWhere("o.status = 'completed'")
-      .andWhere("o.deleted_at IS NULL")
-      .getRawOne<{ sum: string }>();
+      if (!shift) {
+        throw new BusinessException(
+          "SHIFT_NOT_FOUND",
+          404,
+          "Không tìm thấy ca làm việc.",
+        );
+      }
+      if (user.role !== "admin" && shift.userId !== user.id) {
+        throw new BusinessException(
+          "FORBIDDEN",
+          403,
+          "Bạn không có quyền đóng ca làm việc này (chỉ Trưởng ca đã mở ca hoặc Admin mới được phép đóng).",
+        );
+      }
+      if (shift.closedAt) {
+        throw new BusinessException(
+          "SHIFT_ALREADY_CLOSED",
+          409,
+          "Ca làm việc này đã được đóng trước đó.",
+        );
+      }
 
-    const expectedCash =
-      Number(shift.openingCash) + Number(cashRevenue?.sum ?? 0);
+      const cashRevenue = await manager
+        .getRepository(Order)
+        .createQueryBuilder("o")
+        .select("COALESCE(SUM(o.total_amount), 0)", "sum")
+        .where("o.shift_id = :id", { id })
+        .andWhere("o.payment_method = 'cash'")
+        .andWhere("o.status = 'completed'")
+        .andWhere("o.deleted_at IS NULL")
+        .getRawOne<{ sum: string }>();
 
-    shift.closingCash = dto.closing_cash;
-    shift.expectedCash = expectedCash;
-    shift.note = dto.note ?? shift.note;
-    shift.closedAt = new Date();
+      shift.closingCash = dto.closing_cash;
+      shift.expectedCash =
+        Number(shift.openingCash) + Number(cashRevenue?.sum ?? 0);
+      shift.note = dto.note ?? shift.note;
+      shift.closedAt = new Date();
 
-    const saved = await this.shiftsRepository.save(shift);
+      return shiftRepo.save(shift);
+    });
+
+    const shiftWithUsers = await this.shiftsRepository.findOne({
+      where: { id: saved.id },
+      relations: ["shiftUsers", "shiftUsers.user"],
+    });
 
     const userFullName =
-      shift.userId === user.id
+      saved.userId === user.id
         ? user.fullName
-        : (await this.usersService.findNamesByIds([shift.userId])).get(
-            shift.userId,
+        : (await this.usersService.findNamesByIds([saved.userId])).get(
+            saved.userId,
           );
     const branchName = (
-      await this.branchesService.findNamesByIds([shift.branchId])
-    ).get(shift.branchId);
+      await this.branchesService.findNamesByIds([saved.branchId])
+    ).get(saved.branchId);
 
-    return this.toDto(saved, branchName, userFullName);
+    return this.toDto(shiftWithUsers ?? saved, branchName, userFullName);
   }
 
   async findAll(
@@ -194,7 +215,8 @@ export class ShiftsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
 
-    const qb = this.shiftsRepository.createQueryBuilder("s")
+    const qb = this.shiftsRepository
+      .createQueryBuilder("s")
       .leftJoinAndSelect("s.shiftUsers", "su")
       .leftJoinAndSelect("su.user", "u");
 
@@ -287,8 +309,15 @@ export class ShiftsService {
       else if (o.paymentMethod === "transfer") transferTotal += amount;
     }
 
+    // Batch lookup tên nhân viên tạo từng đơn — tránh N+1 khi ca có nhiều đơn
+    const creatorNames = await this.usersService.findNamesByIds(
+      orders.map((o) => o.createdBy),
+    );
+
     const orderSummaries: ShiftOrderSummaryDto[] = orders.map((o) => ({
       id: o.id,
+      created_by: o.createdBy,
+      created_by_name: creatorNames.get(o.createdBy) ?? null,
       payment_method: o.paymentMethod,
       payment_status: o.paymentStatus,
       status: o.status,
@@ -314,7 +343,6 @@ export class ShiftsService {
       orders: orderSummaries,
     };
   }
-
   async findOpenShiftForBranch(branchId: number): Promise<Shift | null> {
     return this.shiftsRepository.findOne({
       where: { branchId, closedAt: IsNull() },
@@ -389,10 +417,11 @@ export class ShiftsService {
     const expectedCash =
       shift.expectedCash != null ? Number(shift.expectedCash) : null;
 
-    const cashiersList = shift.shiftUsers?.map((su) => ({
-      id: su.userId,
-      full_name: su.user ? su.user.fullName : `Thu ngân #${su.userId}`,
-    })) || [];
+    const cashiersList =
+      shift.shiftUsers?.map((su) => ({
+        id: su.userId,
+        full_name: su.user ? su.user.fullName : `Thu ngân #${su.userId}`,
+      })) || [];
 
     return {
       id: shift.id,

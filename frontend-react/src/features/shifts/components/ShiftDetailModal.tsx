@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { useShiftDetailQuery } from "../api/shifts.queries";
 import { Modal, ModalTitleBar } from "@/components/Modal";
+import { useAuth } from "@/features/auth";
+import { CloseShiftModal } from "./ShiftModals";
+import { ShiftPrintView } from "./ShiftPrintView";
 
 interface ShiftDetailModalProps {
   shiftId: number;
@@ -12,8 +16,32 @@ const methodLabel: Record<string, string> = {
   transfer: "Chuyển khoản (ZaloPay)",
 };
 
+const ORDERS_PER_PAGE = 10;
+
 export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
   const { data: shift, isLoading } = useShiftDetailQuery(shiftId);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [ordersPage, setOrdersPage] = useState(1);
+
+  const canClose =
+    !!shift && !shift.closed_at && (isAdmin || shift.user_id === user?.id);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const totalOrders = shift?.orders.length ?? 0;
+  const totalOrdersPages = Math.max(
+    1,
+    Math.ceil(totalOrders / ORDERS_PER_PAGE),
+  );
+  const pagedOrders =
+    shift?.orders.slice(
+      (ordersPage - 1) * ORDERS_PER_PAGE,
+      ordersPage * ORDERS_PER_PAGE,
+    ) ?? [];
 
   return (
     <Modal onClose={onClose} maxWidth={640}>
@@ -68,7 +96,40 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
               </div>
             </div>
 
-            {/* Danh sách thu ngân trong ca */}
+            <div
+              className="grid-cols-2"
+              style={{ gap: "12px", marginBottom: 16 }}
+            >
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Chi nhánh
+                </span>
+                <div style={{ fontWeight: 700 }}>
+                  {shift.branch_name ?? `#${shift.branch_id}`}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Nhân viên
+                </span>
+                <div style={{ fontWeight: 700 }}>
+                  {shift.user_full_name ?? `#${shift.user_id}`}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Mở ca</span>
+                <div>{new Date(shift.opened_at).toLocaleString("vi-VN")}</div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Đóng ca</span>
+                <div>
+                  {shift.closed_at
+                    ? new Date(shift.closed_at).toLocaleString("vi-VN")
+                    : "Đang mở"}
+                </div>
+              </div>
+            </div>
+
             {shift.cashiers && shift.cashiers.length > 0 && (
               <div
                 style={{
@@ -79,7 +140,13 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                   marginBottom: 16,
                 }}
               >
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 8 }}>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "var(--text-secondary)",
+                    marginBottom: 8,
+                  }}
+                >
                   👥 Thu ngân làm việc trong ca ({shift.cashiers.length} người)
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
@@ -198,20 +265,21 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
               className="table-container"
               style={{ maxHeight: 280, overflowY: "auto" }}
             >
-              <table className="table">
+              <table className="table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
                     <th>Đơn</th>
+                    <th>Nhân viên bán</th>
                     <th>PT thanh toán</th>
                     <th>Trạng thái</th>
                     <th style={{ textAlign: "right" }}>Tổng tiền</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {shift.orders.length === 0 ? (
+                  {totalOrders === 0 ? (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         style={{
                           textAlign: "center",
                           color: "var(--text-muted)",
@@ -221,9 +289,14 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                       </td>
                     </tr>
                   ) : (
-                    shift.orders.map((o) => (
+                    pagedOrders.map((o) => (
                       <tr key={o.id}>
                         <td>#{o.id}</td>
+                        <td>
+                          <span style={{ fontSize: "0.85rem" }}>
+                            {o.created_by_name ?? `#${o.created_by}`}
+                          </span>
+                        </td>
                         <td>
                           {methodLabel[o.payment_method] ?? o.payment_method}
                         </td>
@@ -243,9 +316,85 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                 </tbody>
               </table>
             </div>
+
+            {totalOrders > ORDERS_PER_PAGE && (
+              <div
+                className="flex-row-between"
+                style={{ marginTop: 10, padding: "0 4px" }}
+              >
+                <span
+                  style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}
+                >
+                  Trang {ordersPage} / {totalOrdersPages} ({totalOrders} đơn)
+                </span>
+                <div className="flex-row-end" style={{ gap: 6 }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                    onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                    disabled={ordersPage === 1}
+                  >
+                    ‹ Trước
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                    onClick={() =>
+                      setOrdersPage((p) => Math.min(totalOrdersPages, p + 1))
+                    }
+                    disabled={ordersPage === totalOrdersPages}
+                  >
+                    Sau ›
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {canClose && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  marginTop: 16,
+                }}
+              >
+                <button
+                  className="btn btn-secondary no-print"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  onClick={handlePrint}
+                >
+                  <span className="material-symbols-outlined">print</span> In
+                  biên bản ca
+                </button>
+                {canClose && (
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => setShowCloseModal(true)}
+                  >
+                    🔒 Đóng ca này
+                  </button>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
+
+      {shift && <ShiftPrintView shift={shift} />}
+      {showCloseModal && shift && (
+        <CloseShiftModal
+          shift={shift}
+          onClose={() => {
+            setShowCloseModal(false);
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 }

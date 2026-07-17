@@ -7,6 +7,7 @@ import { env } from "@/config/env";
 import { notify } from "@/lib/notify";
 import type { ApiErrorResponse, ApiSuccessResponse } from "@/types/api";
 import { useAuthStore } from "@/features/auth/stores/auth.store";
+import { useShiftStore } from "@/features/shifts/stores/shift.store";
 
 export class ApiError extends Error {
   constructor(
@@ -91,6 +92,7 @@ apiClient.interceptors.response.use(
       const refreshToken = useAuthStore.getState().refreshToken;
       if (!refreshToken) {
         useAuthStore.getState().clearSession();
+        useShiftStore.getState().setActiveShift(null);
         return Promise.reject(apiError);
       }
 
@@ -127,6 +129,7 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         flushQueue(refreshErr, null);
         useAuthStore.getState().clearSession();
+        useShiftStore.getState().setActiveShift(null);
         notify.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         return Promise.reject(apiError);
       } finally {

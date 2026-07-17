@@ -1,10 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useShiftStore } from "@/features/shifts/stores/shift.store";
 import { useProductBarcodeQuery } from "@/features/products/api/products.queries";
-import { useCreateOrderMutation, useConfirmPaymentMutation } from "../api/orders.queries";
+import {
+  useCreateOrderMutation,
+  useConfirmPaymentMutation,
+} from "../api/orders.queries";
 import type { CartItem, Order } from "../types";
 import { notify } from "@/lib/notify";
 import { ordersApi } from "../api/orders.api";
+import { ReceiptPrintView } from "../components/ReceiptPrintView";
+import { useBranchDetailQuery } from "@/features/branches/api/branches.queries";
 
 export default function POSPage() {
   const { activeShift } = useShiftStore();
@@ -12,11 +17,25 @@ export default function POSPage() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [fetchBarcode, setFetchBarcode] = useState("");
   const [discount, setDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cash" | "card" | "transfer"
+  >("cash");
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
 
-  const { data: scannedProduct, isFetching: isScanLoading, isError: isScanError } = useProductBarcodeQuery(
+  const { data: branchDetail } = useBranchDetailQuery(
+    completedOrder?.branch_id,
+  );
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const {
+    data: scannedProduct,
+    isFetching: isScanLoading,
+    isError: isScanError,
+  } = useProductBarcodeQuery(
     fetchBarcode,
     activeShift?.branch_id,
     !!fetchBarcode,
@@ -28,16 +47,23 @@ export default function POSPage() {
     setCart((prev) => {
       const exists = prev.find((i) => i.product_id === scannedProduct.id);
       if (exists) {
-        return prev.map((i) => i.product_id === scannedProduct.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map((i) =>
+          i.product_id === scannedProduct.id
+            ? { ...i, quantity: i.quantity + 1 }
+            : i,
+        );
       }
-      return [...prev, {
-        product_id: scannedProduct.id,
-        product_name: scannedProduct.name,
-        barcode: scannedProduct.barcode || "",
-        unit: scannedProduct.unit,
-        unit_price: scannedProduct.sale_price,
-        quantity: 1,
-      }];
+      return [
+        ...prev,
+        {
+          product_id: scannedProduct.id,
+          product_name: scannedProduct.name,
+          barcode: scannedProduct.barcode || "",
+          unit: scannedProduct.unit,
+          unit_price: scannedProduct.sale_price,
+          quantity: 1,
+        },
+      ];
     });
     setFetchBarcode("");
   }, [scannedProduct, fetchBarcode]);
@@ -63,7 +89,9 @@ export default function POSPage() {
     if (qty <= 0) {
       setCart((prev) => prev.filter((i) => i.product_id !== pid));
     } else {
-      setCart((prev) => prev.map((i) => i.product_id === pid ? { ...i, quantity: qty } : i));
+      setCart((prev) =>
+        prev.map((i) => (i.product_id === pid ? { ...i, quantity: qty } : i)),
+      );
     }
   };
 
@@ -71,12 +99,21 @@ export default function POSPage() {
   const total = Math.max(0, subtotal - discount);
 
   const handleCheckout = async () => {
-    if (cart.length === 0) { notify.error("Giỏ hàng trống!"); return; }
-    if (!activeShift) { notify.error("Bạn cần mở ca làm việc trước!"); return; }
+    if (cart.length === 0) {
+      notify.error("Giỏ hàng trống!");
+      return;
+    }
+    if (!activeShift) {
+      notify.error("Bạn cần mở ca làm việc trước!");
+      return;
+    }
     const order = await createOrderMutation.mutateAsync({
       payment_method: paymentMethod,
       discount_amount: discount || undefined,
-      items: cart.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+      items: cart.map((i) => ({
+        product_id: i.product_id,
+        quantity: i.quantity,
+      })),
     });
     setCompletedOrder(order);
     setCart([]);
@@ -90,7 +127,11 @@ export default function POSPage() {
 
   // Polling order status if it's transfer (ZaloPay) and pending
   useEffect(() => {
-    if (!completedOrder || completedOrder.payment_status !== "pending" || completedOrder.payment_method !== "transfer") {
+    if (
+      !completedOrder ||
+      completedOrder.payment_status !== "pending" ||
+      completedOrder.payment_method !== "transfer"
+    ) {
       return;
     }
 
@@ -98,7 +139,11 @@ export default function POSPage() {
     const intervalId = setInterval(async () => {
       try {
         const freshOrder = await ordersApi.getOrderById(completedOrder.id);
-        if (isSubscribed && freshOrder && freshOrder.payment_status === "paid") {
+        if (
+          isSubscribed &&
+          freshOrder &&
+          freshOrder.payment_status === "paid"
+        ) {
           setCompletedOrder(freshOrder);
           notify.success("Thanh toán ZaloPay thành công!");
           clearInterval(intervalId);
@@ -117,8 +162,16 @@ export default function POSPage() {
   return (
     <div className="pos-layout">
       {!activeShift && (
-        <div className="card" style={{ marginBottom: "16px", borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.05)" }}>
-          ⚠️ <strong>Bạn chưa mở ca làm việc!</strong> Vui lòng vào trang <a href="/shifts">Quản lý Ca</a> để mở ca trước khi bán hàng.
+        <div
+          className="card"
+          style={{
+            marginBottom: "16px",
+            borderColor: "rgba(239,68,68,0.3)",
+            background: "rgba(239,68,68,0.05)",
+          }}
+        >
+          ⚠️ <strong>Bạn chưa mở ca làm việc!</strong> Vui lòng vào trang{" "}
+          <a href="/shifts">Quản lý Ca</a> để mở ca trước khi bán hàng.
         </div>
       )}
 
@@ -126,7 +179,9 @@ export default function POSPage() {
         {/* Left: Product Search & Cart */}
         <div className="pos-left">
           <div className="card" style={{ marginBottom: "16px" }}>
-            <h3 style={{ marginBottom: "12px", fontSize: "1rem" }}>🔍 Tìm sản phẩm theo mã vạch</h3>
+            <h3 style={{ marginBottom: "12px", fontSize: "1rem" }}>
+              🔍 Tìm sản phẩm theo mã vạch
+            </h3>
             <div style={{ display: "flex", gap: "8px" }}>
               <input
                 ref={barcodeRef}
@@ -150,12 +205,28 @@ export default function POSPage() {
           </div>
 
           {/* Cart */}
-          <div className="card" style={{ flex: 1, padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-color)" }}>
-              <h3 style={{ fontSize: "1rem" }}>🛒 Giỏ hàng ({cart.length} sản phẩm)</h3>
+          <div
+            className="card"
+            style={{ flex: 1, padding: 0, overflow: "hidden" }}
+          >
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--border-color)",
+              }}
+            >
+              <h3 style={{ fontSize: "1rem" }}>
+                🛒 Giỏ hàng ({cart.length} sản phẩm)
+              </h3>
             </div>
             {cart.length === 0 ? (
-              <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+              <div
+                style={{
+                  padding: "40px",
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                }}
+              >
                 Quét barcode để thêm sản phẩm vào giỏ hàng
               </div>
             ) : (
@@ -174,22 +245,77 @@ export default function POSPage() {
                     {cart.map((item) => (
                       <tr key={item.product_id}>
                         <td>
-                          <div style={{ fontWeight: "600", fontSize: "0.9rem" }}>{item.product_name}</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{item.barcode}</div>
-                        </td>
-                        <td>{item.unit_price.toLocaleString("vi-VN")} đ/{item.unit}</td>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <button className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "1rem" }} onClick={() => updateQty(item.product_id, item.quantity - 1)}>−</button>
-                            <span style={{ minWidth: "24px", textAlign: "center", fontWeight: "600" }}>{item.quantity}</span>
-                            <button className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "1rem" }} onClick={() => updateQty(item.product_id, item.quantity + 1)}>+</button>
+                          <div
+                            style={{ fontWeight: "600", fontSize: "0.9rem" }}
+                          >
+                            {item.product_name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {item.barcode}
                           </div>
                         </td>
-                        <td style={{ fontWeight: "600", color: "var(--primary)" }}>
-                          {(item.unit_price * item.quantity).toLocaleString("vi-VN")} đ
+                        <td>
+                          {item.unit_price.toLocaleString("vi-VN")} đ/
+                          {item.unit}
                         </td>
                         <td>
-                          <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "0.8rem" }} onClick={() => updateQty(item.product_id, 0)}>Xóa</button>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: "2px 8px", fontSize: "1rem" }}
+                              onClick={() =>
+                                updateQty(item.product_id, item.quantity - 1)
+                              }
+                            >
+                              −
+                            </button>
+                            <span
+                              style={{
+                                minWidth: "24px",
+                                textAlign: "center",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {item.quantity}
+                            </span>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: "2px 8px", fontSize: "1rem" }}
+                              onClick={() =>
+                                updateQty(item.product_id, item.quantity + 1)
+                              }
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
+                        <td
+                          style={{ fontWeight: "600", color: "var(--primary)" }}
+                        >
+                          {(item.unit_price * item.quantity).toLocaleString(
+                            "vi-VN",
+                          )}{" "}
+                          đ
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-danger"
+                            style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => updateQty(item.product_id, 0)}
+                          >
+                            Xóa
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -205,24 +331,57 @@ export default function POSPage() {
           <div className="card">
             <h3 style={{ marginBottom: "20px" }}>💰 Thanh toán</h3>
 
-            <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "16px",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: "8px",
+                border: "1px solid var(--border-color)",
+              }}
+            >
               <div className="flex-row-between" style={{ marginBottom: "8px" }}>
-                <span style={{ color: "var(--text-secondary)" }}>Tạm tính:</span>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Tạm tính:
+                </span>
                 <span>{subtotal.toLocaleString("vi-VN")} đ</span>
               </div>
               <div className="flex-row-between" style={{ marginBottom: "8px" }}>
-                <span style={{ color: "var(--text-secondary)" }}>Giảm giá:</span>
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Giảm giá:
+                </span>
                 <input
                   type="number"
                   className="form-control"
-                  style={{ width: "120px", padding: "4px 8px", fontSize: "0.9rem", textAlign: "right" }}
+                  style={{
+                    width: "120px",
+                    padding: "4px 8px",
+                    fontSize: "0.9rem",
+                    textAlign: "right",
+                  }}
                   value={discount}
-                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                  onChange={(e) =>
+                    setDiscount(Math.max(0, Number(e.target.value)))
+                  }
                 />
               </div>
-              <div className="flex-row-between" style={{ paddingTop: "12px", borderTop: "1px solid var(--border-color)" }}>
-                <span style={{ fontWeight: "700", fontSize: "1.1rem" }}>Tổng thanh toán:</span>
-                <span style={{ fontWeight: "800", fontSize: "1.4rem", color: "var(--primary)" }}>
+              <div
+                className="flex-row-between"
+                style={{
+                  paddingTop: "12px",
+                  borderTop: "1px solid var(--border-color)",
+                }}
+              >
+                <span style={{ fontWeight: "700", fontSize: "1.1rem" }}>
+                  Tổng thanh toán:
+                </span>
+                <span
+                  style={{
+                    fontWeight: "800",
+                    fontSize: "1.4rem",
+                    color: "var(--primary)",
+                  }}
+                >
                   {total.toLocaleString("vi-VN")} đ
                 </span>
               </div>
@@ -236,20 +395,45 @@ export default function POSPage() {
                     key={m}
                     type="button"
                     className={`btn ${paymentMethod === m ? "btn-primary" : "btn-secondary"}`}
-                    style={{ flex: 1, fontSize: "0.85rem", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
+                    style={{
+                      flex: 1,
+                      fontSize: "0.85rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                    }}
                     onClick={() => setPaymentMethod(m)}
                   >
                     {m === "cash" ? (
                       <>
-                        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>payments</span> Tiền mặt
+                        <span
+                          className="material-symbols-outlined"
+                          style={{ fontSize: "1.1rem" }}
+                        >
+                          payments
+                        </span>{" "}
+                        Tiền mặt
                       </>
                     ) : m === "card" ? (
                       <>
-                        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>credit_card</span> Thẻ
+                        <span
+                          className="material-symbols-outlined"
+                          style={{ fontSize: "1.1rem" }}
+                        >
+                          credit_card
+                        </span>{" "}
+                        Thẻ
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>qr_code_2</span> ZaloPay
+                        <span
+                          className="material-symbols-outlined"
+                          style={{ fontSize: "1.1rem" }}
+                        >
+                          qr_code_2
+                        </span>{" "}
+                        ZaloPay
                       </>
                     )}
                   </button>
@@ -259,28 +443,60 @@ export default function POSPage() {
 
             <button
               className="btn btn-success"
-              style={{ width: "100%", padding: "14px", fontSize: "1rem", marginTop: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+              style={{
+                width: "100%",
+                padding: "14px",
+                fontSize: "1rem",
+                marginTop: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
               onClick={handleCheckout}
-              disabled={cart.length === 0 || createOrderMutation.isPending || !activeShift}
+              disabled={
+                cart.length === 0 ||
+                createOrderMutation.isPending ||
+                !activeShift
+              }
             >
               {createOrderMutation.isPending ? (
                 <>
-                  <span className="material-symbols-outlined">hourglass_empty</span> Đang xử lý...
+                  <span className="material-symbols-outlined">
+                    hourglass_empty
+                  </span>{" "}
+                  Đang xử lý...
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined">check_circle</span> Xác nhận Thanh toán
+                  <span className="material-symbols-outlined">
+                    check_circle
+                  </span>{" "}
+                  Xác nhận Thanh toán
                 </>
               )}
             </button>
 
             <button
               className="btn btn-secondary"
-              style={{ width: "100%", padding: "10px", fontSize: "0.9rem", marginTop: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-              onClick={() => { setCart([]); setDiscount(0); }}
+              style={{
+                width: "100%",
+                padding: "10px",
+                fontSize: "0.9rem",
+                marginTop: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
+              onClick={() => {
+                setCart([]);
+                setDiscount(0);
+              }}
               disabled={cart.length === 0}
             >
-              <span className="material-symbols-outlined">delete</span> Hủy giỏ hàng
+              <span className="material-symbols-outlined">delete</span> Hủy giỏ
+              hàng
             </button>
           </div>
         </div>
@@ -289,44 +505,124 @@ export default function POSPage() {
       {/* Payment Result Modal */}
       {completedOrder && (
         <div className="modal-overlay">
-          <div className="modal-box animate-slide-in" style={{ maxWidth: "480px" }}>
-            <div className="modal-title-bar" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="material-symbols-outlined" style={{ color: completedOrder.payment_status === "paid" ? "var(--success)" : "var(--warning)" }}>
-                {completedOrder.payment_status === "paid" ? "check_circle" : "hourglass_top"}
+          <div
+            className="modal-box animate-slide-in"
+            style={{ maxWidth: "480px" }}
+          >
+            <div
+              className="modal-title-bar"
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  color:
+                    completedOrder.payment_status === "paid"
+                      ? "var(--success)"
+                      : "var(--warning)",
+                }}
+              >
+                {completedOrder.payment_status === "paid"
+                  ? "check_circle"
+                  : "hourglass_top"}
               </span>
-              <h3>{completedOrder.payment_status === "paid" ? "Thanh toán thành công!" : "Chờ thanh toán ZaloPay"}</h3>
+              <h3>
+                {completedOrder.payment_status === "paid"
+                  ? "Thanh toán thành công!"
+                  : "Chờ thanh toán ZaloPay"}
+              </h3>
             </div>
             <div className="modal-content" style={{ textAlign: "center" }}>
-              <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", textAlign: "left" }}>
-                <p><strong>Mã đơn hàng:</strong> #{completedOrder.id}</p>
-                <p><strong>Tổng tiền:</strong> {completedOrder.total_amount.toLocaleString("vi-VN")} đ</p>
-                <p><strong>Phương thức:</strong> {completedOrder.payment_method === "cash" ? "Tiền mặt" : completedOrder.payment_method === "card" ? "Thẻ" : "ZaloPay QR"}</p>
+              <div
+                style={{
+                  marginBottom: "16px",
+                  padding: "16px",
+                  background: "rgba(255,255,255,0.03)",
+                  borderRadius: "8px",
+                  textAlign: "left",
+                }}
+              >
+                <p>
+                  <strong>Mã đơn hàng:</strong> #{completedOrder.id}
+                </p>
+                <p>
+                  <strong>Tổng tiền:</strong>{" "}
+                  {completedOrder.total_amount.toLocaleString("vi-VN")} đ
+                </p>
+                <p>
+                  <strong>Phương thức:</strong>{" "}
+                  {completedOrder.payment_method === "cash"
+                    ? "Tiền mặt"
+                    : completedOrder.payment_method === "card"
+                      ? "Thẻ"
+                      : "ZaloPay QR"}
+                </p>
               </div>
-              {completedOrder.qr_code && completedOrder.payment_status === "pending" && (
-                <div style={{ marginBottom: "16px" }}>
-                  <p style={{ marginBottom: "8px", color: "var(--text-secondary)" }}>Quét mã QR bằng ứng dụng ZaloPay hoặc Ngân hàng:</p>
-                  <div style={{ display: "inline-block", background: "white", padding: "8px", borderRadius: "12px", border: "1px solid var(--border-color)", margin: "8px 0" }}>
-                    <img src={completedOrder.qr_code} alt="ZaloPay QR Code" style={{ width: "220px", height: "220px", display: "block" }} />
-                  </div>
-                  {completedOrder.qr_content && (
-                    <div style={{ marginTop: "16px" }}>
-                      <a
-                        href={completedOrder.qr_content}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-primary"
-                        style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none" }}
-                      >
-                        <span className="material-symbols-outlined">open_in_new</span> Mở cổng thanh toán ZaloPay
-                      </a>
+              {completedOrder.qr_code &&
+                completedOrder.payment_status === "pending" && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <p
+                      style={{
+                        marginBottom: "8px",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      Quét mã QR bằng ứng dụng ZaloPay hoặc Ngân hàng:
+                    </p>
+                    <div
+                      style={{
+                        display: "inline-block",
+                        background: "white",
+                        padding: "8px",
+                        borderRadius: "12px",
+                        border: "1px solid var(--border-color)",
+                        margin: "8px 0",
+                      }}
+                    >
+                      <img
+                        src={completedOrder.qr_code}
+                        alt="ZaloPay QR Code"
+                        style={{
+                          width: "220px",
+                          height: "220px",
+                          display: "block",
+                        }}
+                      />
                     </div>
-                  )}
-                </div>
-              )}
+                    {completedOrder.qr_content && (
+                      <div style={{ marginTop: "16px" }}>
+                        <a
+                          href={completedOrder.qr_content}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-primary"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            textDecoration: "none",
+                          }}
+                        >
+                          <span className="material-symbols-outlined">
+                            open_in_new
+                          </span>{" "}
+                          Mở cổng thanh toán ZaloPay
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
               {completedOrder.payment_status === "paid" && (
                 <div style={{ padding: "20px 0", color: "var(--success)" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: "4rem", marginBottom: "8px" }}>check_circle</span>
-                  <p style={{ fontWeight: "600", fontSize: "1.1rem" }}>Đã nhận được thanh toán từ ZaloPay!</p>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: "4rem", marginBottom: "8px" }}
+                  >
+                    check_circle
+                  </span>
+                  <p style={{ fontWeight: "600", fontSize: "1.1rem" }}>
+                    Đã nhận được thanh toán từ ZaloPay!
+                  </p>
                 </div>
               )}
             </div>
@@ -334,22 +630,48 @@ export default function POSPage() {
               {completedOrder.payment_status === "pending" && (
                 <button
                   className="btn btn-success"
-                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
                   onClick={() => handleConfirmPayment(completedOrder.id)}
                   disabled={confirmPaymentMutation.isPending}
                 >
                   <span className="material-symbols-outlined">payments</span>
-                  {confirmPaymentMutation.isPending ? "Đang xác nhận..." : "Xác nhận nhận tiền mặt"}
+                  {confirmPaymentMutation.isPending
+                    ? "Đang xác nhận..."
+                    : "Xác nhận nhận tiền mặt"}
                 </button>
               )}
               <button
                 className="btn btn-secondary"
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
                 onClick={() => setCompletedOrder(null)}
               >
                 <span className="material-symbols-outlined">close</span> Đóng
               </button>
+              <button
+                className="btn btn-secondary no-print"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                onClick={handlePrint}
+              >
+                <span className="material-symbols-outlined">print</span> In hóa
+                đơn
+              </button>
             </div>
+            {completedOrder && (
+              <ReceiptPrintView
+                order={completedOrder}
+                branchName={branchDetail?.name}
+                branchAddress={branchDetail?.address}
+                branchPhone={branchDetail?.phone}
+              />
+            )}
           </div>
         </div>
       )}

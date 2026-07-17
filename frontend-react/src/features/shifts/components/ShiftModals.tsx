@@ -171,7 +171,7 @@ export function OpenShiftModal({ onClose }: OpenShiftModalProps) {
             className="btn btn-success"
             disabled={mutation.isPending}
           >
-            {mutation.isPending ? "Đang mở ca..." : "✅ Mở ca"}
+            {mutation.isPending ? "Đang mở ca..." : "Mở ca"}
           </button>
         </div>
       </form>

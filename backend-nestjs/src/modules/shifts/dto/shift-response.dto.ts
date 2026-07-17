@@ -94,6 +94,19 @@ export class ShiftOrderSummaryDto {
   @ApiProperty({ example: 15 })
   id: number;
 
+  @ApiProperty({
+    example: 2,
+    description: "ID nhân viên tạo đơn (orders.created_by)",
+  })
+  created_by: number;
+
+  @ApiProperty({
+    example: "Nguyễn Văn A",
+    nullable: true,
+    description: "Tên nhân viên tạo đơn, hiển thị kèm created_by để UI dễ đọc.",
+  })
+  created_by_name: string | null;
+
   @ApiProperty({ example: "cash", enum: ["cash", "card", "transfer"] })
   payment_method: string;
 

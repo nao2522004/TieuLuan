@@ -405,3 +405,28 @@ a:hover {
 .animate-slide-in {
   animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* In hóa đơn*/
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-receipt,
+  #print-receipt * {
+    visibility: visible;
+  }
+  #print-receipt {
+    display: block !important;  
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+.print-receipt-hidden {
+  display: none;
+}

@@ -7,6 +7,8 @@ import {
 } from "../api/orders.queries";
 import type { Order } from "../types";
 import { useOrderDetailQuery } from "../api/orders.queries";
+import { ReceiptPrintView } from "../components/ReceiptPrintView";
+import { useBranchDetailQuery } from "@/features/branches/api/branches.queries";
 
 function StatusBadge({ status }: { status: string }) {
   return status === "completed" ? (
@@ -28,7 +30,10 @@ function MethodIcon({ method }: { method: string }) {
   if (method === "cash")
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: "1.1rem" }}
+        >
           payments
         </span>{" "}
         Tiền mặt
@@ -37,7 +42,10 @@ function MethodIcon({ method }: { method: string }) {
   if (method === "card")
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: "1.1rem" }}
+        >
           credit_card
         </span>{" "}
         Thẻ
@@ -45,7 +53,10 @@ function MethodIcon({ method }: { method: string }) {
     );
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>
+      <span
+        className="material-symbols-outlined"
+        style={{ fontSize: "1.1rem" }}
+      >
         qr_code_2
       </span>{" "}
       ZaloPay
@@ -65,6 +76,11 @@ function OrderDetailModal({
   const isAdmin = user?.role === "admin";
   const cancelMutation = useCancelOrderMutation();
   const confirmMutation = useConfirmPaymentMutation();
+  const { data: branchDetail } = useBranchDetailQuery(order?.branch_id);
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -73,24 +89,50 @@ function OrderDetailModal({
         style={{ maxWidth: 560 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-title-bar" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span className="material-symbols-outlined" style={{ color: "var(--primary)" }}>
+        <div
+          className="modal-title-bar"
+          style={{ display: "flex", alignItems: "center", gap: 10 }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{ color: "var(--primary)" }}
+          >
             receipt_long
           </span>
           <h3 style={{ margin: 0 }}>Chi tiết Đơn #{orderId}</h3>
           <button
             className="btn btn-secondary"
-            style={{ marginLeft: "auto", padding: "4px 10px", fontSize: "0.8rem" }}
+            style={{
+              marginLeft: "auto",
+              padding: "4px 10px",
+              fontSize: "0.8rem",
+            }}
             onClick={onClose}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>close</span>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "1rem" }}
+            >
+              close
+            </span>
           </button>
         </div>
 
         <div className="modal-content">
           {isLoading || !order ? (
-            <div style={{ textAlign: "center", padding: "32px", color: "var(--text-muted)" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: "2rem" }}>hourglass_empty</span>
+            <div
+              style={{
+                textAlign: "center",
+                padding: "32px",
+                color: "var(--text-muted)",
+              }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: "2rem" }}
+              >
+                hourglass_empty
+              </span>
               <p>Đang tải...</p>
             </div>
           ) : (
@@ -111,45 +153,80 @@ function OrderDetailModal({
               >
                 <div>
                   <span style={{ color: "var(--text-secondary)" }}>Mã đơn</span>
-                  <div style={{ fontWeight: 700, color: "var(--primary)" }}>#{order.id}</div>
+                  <div style={{ fontWeight: 700, color: "var(--primary)" }}>
+                    #{order.id}
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Thời gian tạo</span>
-                  <div>{new Date(order.created_at).toLocaleString("vi-VN")}</div>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Thời gian tạo
+                  </span>
+                  <div>
+                    {new Date(order.created_at).toLocaleString("vi-VN")}
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Chi nhánh</span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Chi nhánh
+                  </span>
                   <div>#{order.branch_id}</div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Nhân viên tạo</span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Nhân viên tạo
+                  </span>
                   <div>#{order.created_by}</div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Phương thức</span>
-                  <div><MethodIcon method={order.payment_method} /></div>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Phương thức
+                  </span>
+                  <div>
+                    <MethodIcon method={order.payment_method} />
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Trạng thái TT</span>
-                  <div><PaymentStatusBadge status={order.payment_status} /></div>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Trạng thái TT
+                  </span>
+                  <div>
+                    <PaymentStatusBadge status={order.payment_status} />
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Trạng thái đơn</span>
-                  <div><StatusBadge status={order.status} /></div>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Trạng thái đơn
+                  </span>
+                  <div>
+                    <StatusBadge status={order.status} />
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: "var(--text-secondary)" }}>Ca làm việc</span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Ca làm việc
+                  </span>
                   <div>{order.shift_id ? `#${order.shift_id}` : "—"}</div>
                 </div>
               </div>
 
               {/* Danh sách sản phẩm */}
-              <h4 style={{ margin: "0 0 8px", fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+              <h4
+                style={{
+                  margin: "0 0 8px",
+                  fontSize: "0.9rem",
+                  color: "var(--text-secondary)",
+                }}
+              >
                 🛍️ Sản phẩm trong đơn ({order.items.length} dòng)
               </h4>
               <div
                 className="table-container"
-                style={{ borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-color)", marginBottom: 16 }}
+                style={{
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  border: "1px solid var(--border-color)",
+                  marginBottom: 16,
+                }}
               >
                 <table className="table" style={{ margin: 0 }}>
                   <thead>
@@ -165,18 +242,35 @@ function OrderDetailModal({
                       <tr key={item.id}>
                         <td>
                           <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                            {item.product_name ?? `Sản phẩm #${item.product_id}`}
+                            {item.product_name ??
+                              `Sản phẩm #${item.product_id}`}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--text-muted)",
+                            }}
+                          >
                             ID: #{item.product_id}
                           </div>
                         </td>
-                        <td style={{ textAlign: "center", fontWeight: 600 }}>{item.quantity}</td>
+                        <td style={{ textAlign: "center", fontWeight: 600 }}>
+                          {item.quantity}
+                        </td>
                         <td style={{ textAlign: "right", fontSize: "0.9rem" }}>
                           {item.unit_price.toLocaleString("vi-VN")} đ
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700, color: "var(--primary)" }}>
-                          {(item.unit_price * item.quantity).toLocaleString("vi-VN")} đ
+                        <td
+                          style={{
+                            textAlign: "right",
+                            fontWeight: 700,
+                            color: "var(--primary)",
+                          }}
+                        >
+                          {(item.unit_price * item.quantity).toLocaleString(
+                            "vi-VN",
+                          )}{" "}
+                          đ
                         </td>
                       </tr>
                     ))}
@@ -197,51 +291,114 @@ function OrderDetailModal({
                 {order.discount_amount > 0 && (
                   <div
                     className="flex-row-between"
-                    style={{ marginBottom: 8, fontSize: "0.875rem", color: "var(--text-secondary)" }}
+                    style={{
+                      marginBottom: 8,
+                      fontSize: "0.875rem",
+                      color: "var(--text-secondary)",
+                    }}
                   >
                     <span>Giảm giá:</span>
-                    <span>− {order.discount_amount.toLocaleString("vi-VN")} đ</span>
+                    <span>
+                      − {order.discount_amount.toLocaleString("vi-VN")} đ
+                    </span>
                   </div>
                 )}
                 <div className="flex-row-between">
-                  <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>Tổng thanh toán:</span>
-                  <span style={{ fontWeight: 800, fontSize: "1.25rem", color: "var(--primary)" }}>
+                  <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>
+                    Tổng thanh toán:
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      fontSize: "1.25rem",
+                      color: "var(--primary)",
+                    }}
+                  >
                     {order.total_amount.toLocaleString("vi-VN")} đ
                   </span>
                 </div>
               </div>
 
               {/* Hành động */}
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <div
+                style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+              >
+                <button
+                  className="btn btn-secondary no-print"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  onClick={handlePrint}
+                >
+                  <span className="material-symbols-outlined">print</span>
+                  In hóa đơn
+                </button>
+
                 {order.payment_status === "pending" &&
                   order.status !== "cancelled" && (
                     <button
                       className="btn btn-success"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-                      onClick={() => confirmMutation.mutate(order.id, { onSuccess: onClose })}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                      onClick={() =>
+                        confirmMutation.mutate(order.id, { onSuccess: onClose })
+                      }
                       disabled={confirmMutation.isPending}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>done</span>
-                      {confirmMutation.isPending ? "Đang xử lý..." : "Xác nhận thanh toán"}
+                      <span
+                        className="material-symbols-outlined"
+                        style={{ fontSize: "1rem" }}
+                      >
+                        done
+                      </span>
+                      {confirmMutation.isPending
+                        ? "Đang xử lý..."
+                        : "Xác nhận thanh toán"}
                     </button>
                   )}
                 {order.status !== "cancelled" &&
                   (isAdmin || order.created_by === user?.id) && (
                     <button
                       className="btn btn-danger"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
                       onClick={() => {
-                        if (window.confirm("Bạn có chắc muốn hủy đơn hàng này?")) {
-                          cancelMutation.mutate(order.id, { onSuccess: onClose });
+                        if (
+                          window.confirm("Bạn có chắc muốn hủy đơn hàng này?")
+                        ) {
+                          cancelMutation.mutate(order.id, {
+                            onSuccess: onClose,
+                          });
                         }
                       }}
                       disabled={cancelMutation.isPending}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>close</span>
+                      <span
+                        className="material-symbols-outlined"
+                        style={{ fontSize: "1rem" }}
+                      >
+                        close
+                      </span>
                       {cancelMutation.isPending ? "Đang hủy..." : "Hủy đơn"}
                     </button>
                   )}
               </div>
+              {order && (
+                <ReceiptPrintView
+                  order={order}
+                  branchName={branchDetail?.name}
+                  branchAddress={branchDetail?.address}
+                  branchPhone={branchDetail?.phone}
+                />
+              )}
             </>
           )}
         </div>
@@ -291,8 +448,21 @@ function FilterBar({
       }}
     >
       {/* From date */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
-        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          minWidth: 140,
+        }}
+      >
+        <label
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--text-secondary)",
+            fontWeight: 600,
+          }}
+        >
           Từ ngày
         </label>
         <input
@@ -305,8 +475,21 @@ function FilterBar({
       </div>
 
       {/* To date */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
-        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          minWidth: 140,
+        }}
+      >
+        <label
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--text-secondary)",
+            fontWeight: 600,
+          }}
+        >
           Đến ngày
         </label>
         <input
@@ -319,8 +502,21 @@ function FilterBar({
       </div>
 
       {/* Status */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
-        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          minWidth: 140,
+        }}
+      >
+        <label
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--text-secondary)",
+            fontWeight: 600,
+          }}
+        >
           Trạng thái đơn
         </label>
         <select
@@ -328,7 +524,10 @@ function FilterBar({
           style={{ padding: "6px 10px", fontSize: "0.85rem" }}
           value={filters.status}
           onChange={(e) =>
-            onChange({ ...filters, status: e.target.value as FilterState["status"] })
+            onChange({
+              ...filters,
+              status: e.target.value as FilterState["status"],
+            })
           }
         >
           <option value="">Tất cả</option>
@@ -338,8 +537,21 @@ function FilterBar({
       </div>
 
       {/* Payment status */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 150 }}>
-        <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          minWidth: 150,
+        }}
+      >
+        <label
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--text-secondary)",
+            fontWeight: 600,
+          }}
+        >
           Thanh toán
         </label>
         <select
@@ -347,7 +559,10 @@ function FilterBar({
           style={{ padding: "6px 10px", fontSize: "0.85rem" }}
           value={filters.payment_status}
           onChange={(e) =>
-            onChange({ ...filters, payment_status: e.target.value as FilterState["payment_status"] })
+            onChange({
+              ...filters,
+              payment_status: e.target.value as FilterState["payment_status"],
+            })
           }
         >
           <option value="">Tất cả</option>
@@ -358,8 +573,21 @@ function FilterBar({
 
       {/* Created by (Admin only) */}
       {isAdmin && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 130 }}>
-          <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            minWidth: 130,
+          }}
+        >
+          <label
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-secondary)",
+              fontWeight: 600,
+            }}
+          >
             Nhân viên (ID)
           </label>
           <input
@@ -369,7 +597,9 @@ function FilterBar({
             placeholder="VD: 2"
             min={1}
             value={filters.created_by}
-            onChange={(e) => onChange({ ...filters, created_by: e.target.value })}
+            onChange={(e) =>
+              onChange({ ...filters, created_by: e.target.value })
+            }
           />
         </div>
       )}
@@ -388,7 +618,12 @@ function FilterBar({
           }}
           onClick={onReset}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>filter_list_off</span>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: "1rem" }}
+          >
+            filter_list_off
+          </span>
           Xóa lọc
         </button>
       )}
@@ -416,10 +651,14 @@ export default function OrdersPage() {
     page,
     limit,
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.payment_status ? { payment_status: filters.payment_status } : {}),
+    ...(filters.payment_status
+      ? { payment_status: filters.payment_status }
+      : {}),
     ...(filters.from_date ? { from_date: filters.from_date } : {}),
     ...(filters.to_date ? { to_date: filters.to_date } : {}),
-    ...(isAdmin && filters.created_by ? { created_by: Number(filters.created_by) } : {}),
+    ...(isAdmin && filters.created_by
+      ? { created_by: Number(filters.created_by) }
+      : {}),
   };
 
   const { data: response, isLoading } = useOrdersQuery(queryParams);
@@ -450,14 +689,26 @@ export default function OrdersPage() {
       <FilterBar
         filters={filters}
         onChange={handleFilterChange}
-        onReset={() => { setFilters(EMPTY_FILTERS); setPage(1); }}
+        onReset={() => {
+          setFilters(EMPTY_FILTERS);
+          setPage(1);
+        }}
         isAdmin={isAdmin}
       />
 
       {/* Content */}
       {isLoading ? (
-        <div style={{ textAlign: "center", padding: "48px", color: "var(--text-muted)" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: "2.5rem" }}>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--text-muted)",
+          }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: "2.5rem" }}
+          >
             hourglass_empty
           </span>
           <p>Đang tải danh sách đơn hàng...</p>
@@ -465,9 +716,16 @@ export default function OrdersPage() {
       ) : orders.length === 0 ? (
         <div
           className="card"
-          style={{ textAlign: "center", padding: "48px", color: "var(--text-secondary)" }}
+          style={{
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--text-secondary)",
+          }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: "2.5rem", marginBottom: 8 }}>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: "2.5rem", marginBottom: 8 }}
+          >
             receipt_long
           </span>
           <p style={{ margin: 0 }}>
@@ -515,7 +773,13 @@ export default function OrdersPage() {
                         #{order.id}
                       </button>
                     </td>
-                    <td style={{ fontSize: "0.82rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        fontSize: "0.82rem",
+                        color: "var(--text-secondary)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {new Date(order.created_at).toLocaleString("vi-VN")}
                     </td>
                     {isAdmin && (
@@ -531,7 +795,10 @@ export default function OrdersPage() {
                             fontSize: "0.8rem",
                           }}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: "0.9rem" }}>
+                          <span
+                            className="material-symbols-outlined"
+                            style={{ fontSize: "0.9rem" }}
+                          >
                             person
                           </span>
                           #{order.created_by}
@@ -541,8 +808,12 @@ export default function OrdersPage() {
                     <td style={{ fontSize: "0.85rem" }}>
                       <MethodIcon method={order.payment_method} />
                     </td>
-                    <td><StatusBadge status={order.status} /></td>
-                    <td><PaymentStatusBadge status={order.payment_status} /></td>
+                    <td>
+                      <StatusBadge status={order.status} />
+                    </td>
+                    <td>
+                      <PaymentStatusBadge status={order.payment_status} />
+                    </td>
                     <td style={{ textAlign: "right", fontSize: "0.85rem" }}>
                       {order.discount_amount > 0
                         ? `${order.discount_amount.toLocaleString("vi-VN")} đ`
@@ -565,7 +836,10 @@ export default function OrdersPage() {
                           onClick={() => setSelectedOrderId(order.id)}
                           title="Xem chi tiết"
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: "0.95rem" }}>
+                          <span
+                            className="material-symbols-outlined"
+                            style={{ fontSize: "0.95rem" }}
+                          >
                             visibility
                           </span>
                         </button>
@@ -584,7 +858,10 @@ export default function OrdersPage() {
                               disabled={confirmMutation.isPending}
                               title="Xác nhận thanh toán"
                             >
-                              <span className="material-symbols-outlined" style={{ fontSize: "0.95rem" }}>
+                              <span
+                                className="material-symbols-outlined"
+                                style={{ fontSize: "0.95rem" }}
+                              >
                                 done
                               </span>
                             </button>
@@ -602,7 +879,9 @@ export default function OrdersPage() {
                               }}
                               onClick={() => {
                                 if (
-                                  window.confirm("Bạn có chắc muốn hủy đơn hàng này?")
+                                  window.confirm(
+                                    "Bạn có chắc muốn hủy đơn hàng này?",
+                                  )
                                 ) {
                                   cancelMutation.mutate(order.id);
                                 }
@@ -610,7 +889,10 @@ export default function OrdersPage() {
                               disabled={cancelMutation.isPending}
                               title="Hủy đơn"
                             >
-                              <span className="material-symbols-outlined" style={{ fontSize: "0.95rem" }}>
+                              <span
+                                className="material-symbols-outlined"
+                                style={{ fontSize: "0.95rem" }}
+                              >
                                 close
                               </span>
                             </button>
@@ -627,10 +909,16 @@ export default function OrdersPage() {
           {meta && meta.total_pages >= 1 && (
             <div
               className="flex-row-between"
-              style={{ padding: "14px 20px", borderTop: "1px solid var(--border-color)" }}
+              style={{
+                padding: "14px 20px",
+                borderTop: "1px solid var(--border-color)",
+              }}
             >
-              <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-                Trang {page} / {meta.total_pages} &mdash; tổng {meta.total_items} đơn hàng
+              <span
+                style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}
+              >
+                Trang {page} / {meta.total_pages} &mdash; tổng{" "}
+                {meta.total_items} đơn hàng
               </span>
               <div className="flex-row-end" style={{ gap: 8 }}>
                 <button
@@ -643,7 +931,9 @@ export default function OrdersPage() {
                 </button>
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setPage((p) => Math.min(meta.total_pages, p + 1))}
+                  onClick={() =>
+                    setPage((p) => Math.min(meta.total_pages, p + 1))
+                  }
                   disabled={page === meta.total_pages}
                   style={{ padding: "6px 12px", fontSize: "0.82rem" }}
                 >

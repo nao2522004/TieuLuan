@@ -31,7 +31,7 @@ export default function ShiftsPage() {
               className="btn btn-success"
               onClick={() => setShowOpenModal(true)}
             >
-              ✅ Mở ca mới
+              Mở ca mới
             </button>
           )}
         </div>
@@ -87,8 +87,21 @@ export default function ShiftsPage() {
                 {new Date(activeShift.opened_at).toLocaleString("vi-VN")}
               </p>
               {activeShift.cashiers && activeShift.cashiers.length > 0 && (
-                <div style={{ marginTop: "10px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", alignSelf: "center" }}>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "var(--text-muted)",
+                      alignSelf: "center",
+                    }}
+                  >
                     👥 Thu ngân:
                   </span>
                   {activeShift.cashiers.map((c) => (
@@ -181,7 +194,7 @@ export default function ShiftsPage() {
             style={{ marginTop: "16px" }}
             onClick={() => setShowOpenModal(true)}
           >
-            ✅ Mở ca mới ngay
+            Mở ca mới ngay
           </button>
         </div>
       )}

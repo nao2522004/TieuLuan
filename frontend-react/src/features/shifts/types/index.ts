@@ -21,6 +21,8 @@ export interface Shift {
 
 export interface ShiftOrderSummary {
   id: number;
+  created_by: number;
+  created_by_name: string | null;
   payment_method: "cash" | "card" | "transfer";
   payment_status: "pending" | "paid";
   status: "completed" | "cancelled";

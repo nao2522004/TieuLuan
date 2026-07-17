@@ -5,6 +5,7 @@ import type { OpenShiftPayload, CloseShiftPayload } from "../types";
 import { notify } from "@/lib/notify";
 import { apiClient } from "@/lib/api-client";
 import type { ApiSuccessResponse } from "@/types/api";
+import { ApiError } from "@/lib/api-client";
 
 export function useShiftsQuery(params?: GetShiftsParams) {
   return useQuery({
@@ -44,14 +45,22 @@ export function useCloseShiftMutation() {
     mutationFn: ({ id, payload }: { id: number; payload: CloseShiftPayload }) =>
       shiftsApi.closeShift(id, payload),
     onSuccess: (data) => {
-      if (activeShift?.id === data.id) {
-        setActiveShift(null);
-      }
+      if (activeShift?.id === data.id) setActiveShift(null);
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       queryClient.invalidateQueries({
         queryKey: ["shifts", "detail", data.id],
       });
       notify.success("Đóng ca làm việc thành công!");
+    },
+    onError: (error) => {
+      if (
+        error instanceof ApiError &&
+        activeShift &&
+        (error.code === "SHIFT_NOT_FOUND" ||
+          error.code === "SHIFT_ALREADY_CLOSED")
+      ) {
+        setActiveShift(null);
+      }
     },
   });
 }
