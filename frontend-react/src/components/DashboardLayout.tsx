@@ -2,6 +2,7 @@ import { type ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth";
 import { useShiftStore, useSyncActiveShift } from "@/features/shifts";
+import { ChangePasswordModal } from "@/features/users/components/ChangePasswordModal";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const isAdmin = user?.role === "admin";
 
@@ -289,6 +291,28 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </nav>
 
         <div className="sidebar-footer">
+          <button
+            onClick={() => setShowChangePassword(true)}
+            className="menu-item"
+          >
+            <span className="menu-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </span>
+            <span className="menu-label">Đổi mật khẩu</span>
+          </button>
           <button onClick={handleLogout} className="menu-item logout-btn">
             <span className="menu-icon">
               <svg

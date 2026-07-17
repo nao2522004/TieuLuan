@@ -3,13 +3,24 @@ import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./entities/user.entity";
 import { Role } from "../roles/entities/role.entity";
+import { Branch } from "../branches/entities/branch.entity";
+import { Shift } from "../shifts/entities/shift.entity";
+import { ShiftUser } from "../shifts/entities/shift-user.entity";
+import { RefreshToken } from "../auth/entities/refresh-token.entity";
 import { UsersService } from "./users.service";
 import { UsersController } from "./users.controller";
 import { RolesModule } from "../roles/roles.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Role]),
+    TypeOrmModule.forFeature([
+      User,
+      Role,
+      Branch,
+      Shift,
+      ShiftUser,
+      RefreshToken,
+    ]),
     JwtModule.register({}),
     forwardRef(() => RolesModule),
   ],
@@ -18,4 +29,3 @@ import { RolesModule } from "../roles/roles.module";
   exports: [UsersService],
 })
 export class UsersModule {}
-

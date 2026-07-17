@@ -72,7 +72,7 @@ export function useCashiersQuery(branchId?: number) {
       const res = await apiClient.get<
         ApiSuccessResponse<{ id: number; full_name: string }[]>
       >("/users", {
-        params: { branch_id: branchId, role_code: "cashier" },
+        params: { branch_id: branchId, role_code: "cashier", limit: 100 },
       });
       return (
         res as unknown as ApiSuccessResponse<
