@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, PrimaryColumn, OneToMany } from "typeorm";
+import { ShiftUser } from "./shift-user.entity";
 
 @Entity("shifts")
 export class Shift {
@@ -67,4 +68,7 @@ export class Shift {
 
   @Column({ name: "closed_at", type: "timestamptz", nullable: true })
   closedAt: Date | null;
+
+  @OneToMany(() => ShiftUser, (shiftUser) => shiftUser.shift, { cascade: true })
+  shiftUsers: ShiftUser[];
 }

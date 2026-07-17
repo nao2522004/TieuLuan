@@ -68,6 +68,40 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
               </div>
             </div>
 
+            {/* Danh sách thu ngân trong ca */}
+            {shift.cashiers && shift.cashiers.length > 0 && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  background: "rgba(99,102,241,0.05)",
+                  border: "1px solid rgba(99,102,241,0.2)",
+                  borderRadius: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 8 }}>
+                  👥 Thu ngân làm việc trong ca ({shift.cashiers.length} người)
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {shift.cashiers.map((c) => (
+                    <span
+                      key={c.id}
+                      style={{
+                        padding: "2px 10px",
+                        borderRadius: 9999,
+                        fontSize: "0.8rem",
+                        background: "rgba(99,102,241,0.15)",
+                        border: "1px solid rgba(99,102,241,0.3)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      {c.full_name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div
               style={{
                 padding: 14,

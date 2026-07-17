@@ -56,6 +56,13 @@ export class ShiftDataDto {
 
   @ApiProperty({ example: "2026-07-13T15:00:00.000Z", nullable: true })
   closed_at: Date | null;
+
+  @ApiProperty({
+    example: [{ id: 2, full_name: "Nhân viên thu ngân" }],
+    description: "Danh sách thu ngân được gán vào ca",
+    nullable: true,
+  })
+  cashiers?: { id: number; full_name: string }[];
 }
 
 export class ShiftResponseDto {

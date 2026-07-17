@@ -9,6 +9,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  IsArray,
 } from "class-validator";
 
 export class OpenShiftDto {
@@ -18,6 +19,18 @@ export class OpenShiftDto {
   @Min(0, { message: "phải >= 0" })
   @IsNotEmpty({ message: "không được để trống" })
   opening_cash: number;
+
+  @ApiPropertyOptional({
+    example: [2, 3],
+    description:
+      "Danh sách ID thu ngân được gán vào ca làm việc (tuỳ chọn, có thể để trống). " +
+      "Trưởng ca có thể mở ca một mình mà không cần thêm thu ngân.",
+  })
+  @IsOptional()
+  @IsArray({ message: "phải là mảng" })
+  @IsInt({ each: true, message: "ID thu ngân phải là số nguyên" })
+  @IsPositive({ each: true, message: "ID thu ngân phải là số dương" })
+  cashier_ids?: number[];
 
   @ApiPropertyOptional({
     example: 1,

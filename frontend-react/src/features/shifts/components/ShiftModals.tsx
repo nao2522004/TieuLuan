@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   useOpenShiftMutation,
   useCloseShiftMutation,
+  useCashiersQuery,
 } from "../api/shifts.queries";
 import { useAuth } from "@/features/auth";
 import { useBranchesQuery } from "@/features/branches/api/branches.queries";
@@ -15,6 +16,7 @@ const openSchema = z.object({
   opening_cash: z.coerce.number().min(0, "Số tiền đầu ca phải >= 0"),
   branch_id: z.coerce.number().optional(),
   note: z.string().max(255).optional().or(z.literal("")),
+  cashier_ids: z.array(z.coerce.number()).min(3, "Phải chọn ít nhất 3 thu ngân").max(5, "Chỉ được chọn tối đa 5 thu ngân"),
 });
 type OpenFormValues = z.infer<typeof openSchema>;
 
@@ -31,17 +33,22 @@ export function OpenShiftModal({ onClose }: OpenShiftModalProps) {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<OpenFormValues>({
     resolver: zodResolver(openSchema),
-    defaultValues: { opening_cash: 0, note: "" },
+    defaultValues: { opening_cash: 0, note: "", cashier_ids: [] },
   });
+
+  const selectedBranchId = watch("branch_id") || user?.branch_id;
+  const { data: cashiers = [] } = useCashiersQuery(selectedBranchId ? Number(selectedBranchId) : undefined);
 
   const onSubmit = async (values: OpenFormValues) => {
     await mutation.mutateAsync({
       opening_cash: values.opening_cash,
       branch_id: user?.branch_id ? undefined : values.branch_id,
       note: values.note || undefined,
+      cashier_ids: values.cashier_ids,
     });
     onClose();
   };
@@ -95,6 +102,48 @@ export function OpenShiftModal({ onClose }: OpenShiftModalProps) {
               {...register("note")}
             />
           </div>
+          {selectedBranchId && (
+            <div className="form-group">
+              <label style={{ fontWeight: "bold" }}>Thu ngân trong ca (Chọn từ 3 đến 5 người) *</label>
+              {cashiers.length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "4px" }}>
+                  Không tìm thấy thu ngân nào hoạt động ở chi nhánh này.
+                </p>
+              ) : (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "10px",
+                  marginTop: "8px",
+                  padding: "10px",
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "6px"
+                }}>
+                  {cashiers.map((c: any) => (
+                    <label key={c.id} style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      cursor: "pointer",
+                      fontWeight: "normal",
+                      fontSize: "0.9rem"
+                    }}>
+                      <input
+                        type="checkbox"
+                        value={c.id}
+                        {...register("cashier_ids")}
+                      />
+                      {c.full_name}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {errors.cashier_ids && (
+                <p className="form-error" style={{ marginTop: "6px" }}>{errors.cashier_ids.message}</p>
+              )}
+            </div>
+          )}
         </div>
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

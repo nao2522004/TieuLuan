@@ -113,7 +113,8 @@ export function AllShiftsTable() {
               <tr>
                 <th>ID</th>
                 <th>Chi nhánh</th>
-                <th>Nhân viên</th>
+                <th>Trưởng ca</th>
+                <th>Thu ngân</th>
                 <th>Quỹ đầu ca</th>
                 <th>Trạng thái</th>
                 <th>Mở lúc</th>
@@ -128,6 +129,28 @@ export function AllShiftsTable() {
                   </td>
                   <td>{s.branch_name ?? `#${s.branch_id}`}</td>
                   <td>{s.user_full_name ?? `#${s.user_id}`}</td>
+                  <td>
+                    {s.cashiers && s.cashiers.length > 0 ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {s.cashiers.map((c) => (
+                          <span
+                            key={c.id}
+                            style={{
+                              fontSize: "0.74rem",
+                              padding: "1px 6px",
+                              borderRadius: 9999,
+                              background: "rgba(99,102,241,0.1)",
+                              border: "1px solid rgba(99,102,241,0.2)",
+                            }}
+                          >
+                            {c.full_name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>—</span>
+                    )}
+                  </td>
                   <td>{s.opening_cash.toLocaleString("vi-VN")} đ</td>
                   <td>
                     {s.closed_at ? (

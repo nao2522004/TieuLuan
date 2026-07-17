@@ -1,9 +1,14 @@
+export interface ShiftCashier {
+  id: number;
+  full_name: string;
+}
+
 export interface Shift {
   id: number;
   branch_id: number;
-  branch_name: string | null; // 🆕
+  branch_name: string | null;
   user_id: number;
-  user_full_name: string | null; // 🆕
+  user_full_name: string | null;
   opening_cash: number;
   closing_cash: number | null;
   expected_cash: number | null;
@@ -11,6 +16,7 @@ export interface Shift {
   note: string | null;
   opened_at: string;
   closed_at: string | null;
+  cashiers?: ShiftCashier[];
 }
 
 export interface ShiftOrderSummary {
@@ -34,6 +40,7 @@ export interface OpenShiftPayload {
   opening_cash: number;
   branch_id?: number;
   note?: string;
+  cashier_ids: number[];
 }
 
 export interface CloseShiftPayload {

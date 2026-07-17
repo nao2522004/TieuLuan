@@ -49,12 +49,33 @@ export class OrdersService {
   async create(dto: CreateOrderDto, user: AuthUser): Promise<OrderDataDto> {
     this.assertNoDuplicateItems(dto.items);
 
-    const openShift = await this.shiftsService.findOpenShiftForUser(user.id);
+    if (!user.branchId) {
+      throw new BusinessException(
+        "SHIFT_BRANCH_REQUIRED",
+        400,
+        "Tài khoản của bạn không thuộc bất kỳ chi nhánh nào.",
+      );
+    }
+
+    const openShift = await this.shiftsService.findOpenShiftForBranch(user.branchId);
     if (!openShift) {
       throw new BusinessException(
         "SHIFT_REQUIRED",
         400,
-        "Bạn cần mở ca làm việc trước khi tạo đơn hàng.",
+        "Chi nhánh hiện chưa có ca làm việc nào đang mở.",
+      );
+    }
+
+    const isAssigned =
+      user.role === "admin" ||
+      openShift.userId === user.id ||
+      (await this.shiftsService.isUserInShift(user.id, openShift.id));
+
+    if (!isAssigned) {
+      throw new BusinessException(
+        "SHIFT_USER_NOT_ASSIGNED",
+        403,
+        "Bạn không được phân công làm việc trong ca đang mở của chi nhánh.",
       );
     }
 

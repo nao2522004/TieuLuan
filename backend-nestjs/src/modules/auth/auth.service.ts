@@ -87,7 +87,7 @@ export class AuthService {
       10,
     );
     return this.jwtService.sign(
-      { sub: user.id, email: user.email, role: user.role, branchId: user.branchId ?? null },
+      { sub: user.id, email: user.email, role: user.role.code, branchId: user.branchId ?? null },
       {
         secret: this.configService.get<string>("JWT_ACCESS_SECRET"),
         expiresIn,
@@ -125,7 +125,7 @@ export class AuthService {
       id: user.id,
       full_name: user.fullName,
       email: user.email,
-      role: user.role,
+      role: user.role.code,
       is_active: user.isActive,
       branch_id: user.branchId ?? null,
       created_at: user.createdAt,

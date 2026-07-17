@@ -2,11 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { Role } from "../../roles/entities/role.entity";
 
-export type UserRole = "admin" | "staff";
+export type UserRole = "admin" | "leader" | "cashier";
 
 @Entity("users")
 export class User {
@@ -15,7 +18,7 @@ export class User {
     generated: "increment",
     transformer: {
       to: (value) => value,
-      from: (value) => parseInt(value, 10),
+      from: (value) => (value != null ? parseInt(value, 10) : null),
     },
   })
   id: number;
@@ -40,8 +43,19 @@ export class User {
   @Column({ name: "password_hash", type: "varchar", length: 255 })
   passwordHash: string;
 
-  @Column({ type: "varchar", length: 20, default: "staff" })
-  role: UserRole;
+  @Column({
+    name: "role_id",
+    type: "bigint",
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value != null ? parseInt(value, 10) : null),
+    },
+  })
+  roleId: number;
+
+  @ManyToOne(() => Role, { eager: true })
+  @JoinColumn({ name: "role_id" })
+  role: Role;
 
   @Column({ name: "is_active", type: "boolean", default: true })
   isActive: boolean;

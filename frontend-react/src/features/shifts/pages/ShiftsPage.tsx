@@ -86,6 +86,28 @@ export default function ShiftsPage() {
                 Bắt đầu lúc:{" "}
                 {new Date(activeShift.opened_at).toLocaleString("vi-VN")}
               </p>
+              {activeShift.cashiers && activeShift.cashiers.length > 0 && (
+                <div style={{ marginTop: "10px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", alignSelf: "center" }}>
+                    👥 Thu ngân:
+                  </span>
+                  {activeShift.cashiers.map((c) => (
+                    <span
+                      key={c.id}
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: 9999,
+                        fontSize: "0.78rem",
+                        background: "rgba(16,185,129,0.15)",
+                        border: "1px solid rgba(16,185,129,0.3)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      {c.full_name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="grid-cols-2" style={{ gap: "16px" }}>

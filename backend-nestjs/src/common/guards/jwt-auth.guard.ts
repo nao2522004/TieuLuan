@@ -62,7 +62,7 @@ export class JwtAuthGuard implements CanActivate {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
-      role: user.role,
+      role: user.role.code as UserRole,
       branchId: user.branchId ?? null,
     };
     return true;

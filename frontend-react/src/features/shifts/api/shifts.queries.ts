@@ -3,6 +3,8 @@ import { shiftsApi, type GetShiftsParams } from "./shifts.api";
 import { useShiftStore } from "../stores/shift.store";
 import type { OpenShiftPayload, CloseShiftPayload } from "../types";
 import { notify } from "@/lib/notify";
+import { apiClient } from "@/lib/api-client";
+import type { ApiSuccessResponse } from "@/types/api";
 
 export function useShiftsQuery(params?: GetShiftsParams) {
   return useQuery({
@@ -51,5 +53,18 @@ export function useCloseShiftMutation() {
       });
       notify.success("Đóng ca làm việc thành công!");
     },
+  });
+}
+
+export function useCashiersQuery(branchId?: number) {
+  return useQuery({
+    queryKey: ["users", "cashiers", branchId],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiSuccessResponse<{ id: number; full_name: string }[]>>("/users", {
+        params: { branch_id: branchId, role_code: "cashier" },
+      });
+      return res.data.data;
+    },
+    enabled: !!branchId,
   });
 }

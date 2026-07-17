@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { IsNull, Repository } from "typeorm";
 import { Shift } from "./entities/shift.entity";
+import { ShiftUser } from "./entities/shift-user.entity";
 import { Order } from "../orders/entities/order.entity";
 import { OpenShiftDto } from "./dto/open-shift.dto";
 import { CloseShiftDto } from "./dto/close-shift.dto";
@@ -22,6 +23,8 @@ export class ShiftsService {
   constructor(
     @InjectRepository(Shift)
     private readonly shiftsRepository: Repository<Shift>,
+    @InjectRepository(ShiftUser)
+    private readonly shiftUsersRepository: Repository<ShiftUser>,
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
     private readonly branchesService: BranchesService,
@@ -29,6 +32,14 @@ export class ShiftsService {
   ) {}
 
   async open(dto: OpenShiftDto, user: AuthUser): Promise<ShiftDataDto> {
+    if (user.role !== "admin" && user.role !== "leader") {
+      throw new BusinessException(
+        "FORBIDDEN",
+        403,
+        "Chỉ Trưởng ca hoặc Quản trị viên mới được quyền mở ca làm việc.",
+      );
+    }
+
     const branchId = user.branchId ?? dto.branch_id;
     if (!branchId) {
       throw new BusinessException(
@@ -40,10 +51,58 @@ export class ShiftsService {
     const branch = await this.branchesService.findOne(branchId);
 
     const existingOpen = await this.shiftsRepository.findOne({
-      where: { userId: user.id, closedAt: IsNull() },
+      where: { branchId, closedAt: IsNull() },
     });
     if (existingOpen) {
       throw this.alreadyOpenError();
+    }
+
+    // Check duplicate cashiers (chỉ khi có danh sách thu ngân)
+    const cashierIds = dto.cashier_ids ?? [];
+    const uniqueIds = [...new Set(cashierIds)];
+    if (uniqueIds.length !== cashierIds.length) {
+      throw new BusinessException(
+        "SHIFT_CASHIERS_DUPLICATE",
+        400,
+        "Danh sách ID thu ngân không được trùng lặp.",
+      );
+    }
+
+    // Validate cashiers (chỉ khi có danh sách)
+    let cashiers: Awaited<ReturnType<typeof this.usersService.findByIds>> = [];
+    if (uniqueIds.length > 0) {
+      cashiers = await this.usersService.findByIds(uniqueIds);
+      if (cashiers.length !== uniqueIds.length) {
+        throw new BusinessException(
+          "SHIFT_CASHIERS_INVALID",
+          400,
+          "Một hoặc nhiều thu ngân không tồn tại trong hệ thống.",
+        );
+      }
+
+      for (const cashier of cashiers) {
+        if (!cashier.isActive) {
+          throw new BusinessException(
+            "SHIFT_CASHIER_INACTIVE",
+            400,
+            `Thu ngân "${cashier.fullName}" hiện đã bị khóa tài khoản.`,
+          );
+        }
+        if (cashier.role.code !== "cashier") {
+          throw new BusinessException(
+            "SHIFT_CASHIER_ROLE_INVALID",
+            400,
+            `Người dùng "${cashier.fullName}" không phải là thu ngân.`,
+          );
+        }
+        if (cashier.branchId !== branchId) {
+          throw new BusinessException(
+            "SHIFT_CASHIER_BRANCH_INVALID",
+            400,
+            `Thu ngân "${cashier.fullName}" thuộc chi nhánh khác.`,
+          );
+        }
+      }
     }
 
     const entity = this.shiftsRepository.create({
@@ -52,6 +111,14 @@ export class ShiftsService {
       openingCash: dto.opening_cash,
       note: dto.note ?? null,
     });
+
+    const shiftUsers = cashiers.map((c) => {
+      const su = new ShiftUser();
+      su.userId = c.id;
+      su.shift = entity;
+      return su;
+    });
+    entity.shiftUsers = shiftUsers;
 
     let saved: Shift;
     try {
@@ -73,11 +140,11 @@ export class ShiftsService {
   ): Promise<ShiftDataDto> {
     const shift = await this.findOrThrow(id);
 
-    if (shift.userId !== user.id && user.role !== "admin") {
+    if (user.role !== "admin" && shift.userId !== user.id) {
       throw new BusinessException(
         "FORBIDDEN",
         403,
-        "Bạn không có quyền đóng ca làm việc này.",
+        "Bạn không có quyền đóng ca làm việc này (chỉ Trưởng ca đã mở ca hoặc Admin mới được phép đóng).",
       );
     }
     if (shift.closedAt) {
@@ -127,7 +194,9 @@ export class ShiftsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
 
-    const qb = this.shiftsRepository.createQueryBuilder("s");
+    const qb = this.shiftsRepository.createQueryBuilder("s")
+      .leftJoinAndSelect("s.shiftUsers", "su")
+      .leftJoinAndSelect("su.user", "u");
 
     if (user.role !== "admin") {
       if (user.branchId) {
@@ -246,14 +315,25 @@ export class ShiftsService {
     };
   }
 
-  async findOpenShiftForUser(userId: number): Promise<Shift | null> {
+  async findOpenShiftForBranch(branchId: number): Promise<Shift | null> {
     return this.shiftsRepository.findOne({
-      where: { userId, closedAt: IsNull() },
+      where: { branchId, closedAt: IsNull() },
+      relations: ["shiftUsers", "shiftUsers.user"],
     });
   }
 
+  async isUserInShift(userId: number, shiftId: number): Promise<boolean> {
+    const count = await this.shiftUsersRepository.count({
+      where: { shiftId, userId },
+    });
+    return count > 0;
+  }
+
   private async findOrThrow(id: number): Promise<Shift> {
-    const shift = await this.shiftsRepository.findOne({ where: { id } });
+    const shift = await this.shiftsRepository.findOne({
+      where: { id },
+      relations: ["shiftUsers", "shiftUsers.user"],
+    });
     if (!shift) {
       throw new BusinessException(
         "SHIFT_NOT_FOUND",
@@ -268,7 +348,7 @@ export class ShiftsService {
     return new BusinessException(
       "SHIFT_ALREADY_OPEN",
       409,
-      "Bạn đang có 1 ca làm việc chưa đóng, không thể mở ca mới.",
+      "Chi nhánh đang có 1 ca làm việc chưa đóng, không thể mở ca mới.",
     );
   }
 
@@ -309,6 +389,11 @@ export class ShiftsService {
     const expectedCash =
       shift.expectedCash != null ? Number(shift.expectedCash) : null;
 
+    const cashiersList = shift.shiftUsers?.map((su) => ({
+      id: su.userId,
+      full_name: su.user ? su.user.fullName : `Thu ngân #${su.userId}`,
+    })) || [];
+
     return {
       id: shift.id,
       branch_id: shift.branchId,
@@ -325,6 +410,7 @@ export class ShiftsService {
       note: shift.note,
       opened_at: shift.openedAt,
       closed_at: shift.closedAt,
+      cashiers: cashiersList,
     };
   }
 }

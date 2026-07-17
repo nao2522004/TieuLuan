@@ -10,6 +10,7 @@ import { User } from "./modules/users/entities/user.entity";
 import { RefreshToken } from "./modules/auth/entities/refresh-token.entity";
 import { Branch } from "./modules/branches/entities/branch.entity";
 import { Shift } from "./modules/shifts/entities/shift.entity";
+import { ShiftUser } from "./modules/shifts/entities/shift-user.entity";
 import { Return } from "./modules/returns/entities/return.entity";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
@@ -28,6 +29,8 @@ import { Order } from "./modules/orders/entities/order.entity";
 import { OrderItem } from "./modules/orders/entities/order-item.entity";
 import { ZaloPayModule } from "./modules/zalopay/zalopay.module";
 import { ReportsModule } from "./modules/reports/reports.module";
+import { RolesModule } from "./modules/roles/roles.module";
+import { Role } from "./modules/roles/entities/role.entity";
 
 @Module({
   imports: [
@@ -55,12 +58,14 @@ import { ReportsModule } from "./modules/reports/reports.module";
           RefreshToken,
           Branch,
           Shift,
+          ShiftUser,
           Return,
           Category,
           Product,
           InventoryTransaction,
           Order,
           OrderItem,
+          Role,
         ],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
@@ -78,6 +83,7 @@ import { ReportsModule } from "./modules/reports/reports.module";
     OrdersModule,
     ZaloPayModule,
     ReportsModule,
+    RolesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

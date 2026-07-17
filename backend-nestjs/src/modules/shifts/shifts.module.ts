@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Shift } from "./entities/shift.entity";
+import { ShiftUser } from "./entities/shift-user.entity";
 import { Order } from "../orders/entities/order.entity";
 import { ShiftsController } from "./shifts.controller";
 import { ShiftsService } from "./shifts.service";
@@ -10,7 +11,7 @@ import { BranchesModule } from "../branches/branches.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Shift, Order]),
+    TypeOrmModule.forFeature([Shift, ShiftUser, Order]),
     JwtModule.register({}),
     UsersModule,
     BranchesModule,
