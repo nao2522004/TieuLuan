@@ -9,6 +9,7 @@ import {
   IsNumber,
   IsOptional,
   IsPositive,
+  IsString,
   Min,
   ValidateNested,
 } from "class-validator";
@@ -58,6 +59,16 @@ export class CreateOrderDto {
   @IsNumber({}, { message: "phải là số" })
   @Min(0, { message: "phải >= 0" })
   discount_amount?: number;
+
+  @ApiPropertyOptional({
+    example: "TET2026",
+    description:
+      "Mã khuyến mãi áp dụng cho ngày đặc biệt. KHÔNG được truyền đồng thời " +
+      "với discount_amount — server sẽ tự tính discount từ mã này.",
+  })
+  @IsOptional()
+  @IsString()
+  promotion_code?: string;
 
   @ApiProperty({
     type: [CreateOrderItemDto],

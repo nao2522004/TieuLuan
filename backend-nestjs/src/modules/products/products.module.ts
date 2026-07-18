@@ -7,6 +7,7 @@ import { ProductsService } from "./products.service";
 import { UsersModule } from "../users/users.module";
 import { BranchesModule } from "../branches/branches.module";
 import { CategoriesModule } from "../categories/categories.module";
+import { ExpiryPricingModule } from "../expiry-pricing/expiry-pricing.module";
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CategoriesModule } from "../categories/categories.module";
     UsersModule,
     BranchesModule,
     CategoriesModule,
+    ExpiryPricingModule,
   ],
   controllers: [ProductsController],
   providers: [ProductsService],

@@ -6,13 +6,17 @@ import { Product } from "./entities/product.entity";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
-import { ProductDto } from "./dto/product-response.dto";
+import {
+  ProductDto,
+  ProductDtoWithoutPricing,
+} from "./dto/product-response.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { RedisService } from "../../common/redis/redis.service";
 import { BranchesService } from "../branches/branches.service";
 import { CategoriesService } from "../categories/categories.service";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
+import { ExpiryPricingService } from "../expiry-pricing/expiry-pricing.service";
 
 const CACHE_PREFIX = "products";
 
@@ -27,6 +31,7 @@ export class ProductsService {
     private readonly configService: ConfigService,
     private readonly branchesService: BranchesService,
     private readonly categoriesService: CategoriesService,
+    private readonly expiryPricingService: ExpiryPricingService,
   ) {
     this.cacheTtl = parseInt(
       this.configService.get<string>("REDIS_CACHE_TTL") ?? "3600",
@@ -44,7 +49,11 @@ export class ProductsService {
     const cached = await this.redisService.get(cacheKey);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        const dataWithPricing = await Promise.all(
+          parsed.data.map((dto: ProductDto) => this.toDtoWithPricing(dto)),
+        );
+        return { ...parsed, data: dataWithPricing };
       } catch {
         // cache hỏng/không parse được -> bỏ qua, query DB như bình thường
       }
@@ -77,7 +86,11 @@ export class ProductsService {
       JSON.stringify(result),
       this.cacheTtl,
     );
-    return result;
+
+    const dataWithPricing = await Promise.all(
+      result.data.map((dto) => this.toDtoWithPricing(dto)),
+    );
+    return { ...result, data: dataWithPricing };
   }
 
   async findOne(id: number): Promise<ProductDto> {
@@ -86,7 +99,8 @@ export class ProductsService {
     const cached = await this.redisService.get(cacheKey);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const dto = JSON.parse(cached);
+        return this.toDtoWithPricing(dto);
       } catch {
         // fallback query DB nếu cache hỏng
       }
@@ -95,7 +109,8 @@ export class ProductsService {
     const product = await this.findActiveOrThrow(id);
     const dto = this.toDto(product);
     await this.redisService.set(cacheKey, JSON.stringify(dto), this.cacheTtl);
-    return dto;
+
+    return this.toDtoWithPricing(dto);
   }
 
   async create(dto: CreateProductDto): Promise<ProductDto> {
@@ -119,7 +134,7 @@ export class ProductsService {
 
     await this.evictListCache();
 
-    return this.toDto(saved);
+    return this.toDtoWithPricing(saved);
   }
 
   async update(id: number, dto: UpdateProductDto): Promise<ProductDto> {
@@ -161,7 +176,7 @@ export class ProductsService {
     await this.evictDetailCache(id);
     await this.evictListCache();
 
-    return this.toDto(saved);
+    return this.toDtoWithPricing(saved);
   }
 
   async remove(id: number): Promise<{ message: string }> {
@@ -195,7 +210,7 @@ export class ProductsService {
       );
     }
 
-    return this.toDto(product);
+    return this.toDtoWithPricing(this.toDto(product));
   }
 
   // Cảnh báo tồn thấp / sắp hết hạn
@@ -227,8 +242,12 @@ export class ProductsService {
       .getMany();
 
     return {
-      low_stock: lowStockRows.map((row) => this.toDto(row)),
-      expiring_soon: expiringSoonRows.map((row) => this.toDto(row)),
+      low_stock: await Promise.all(
+        lowStockRows.map((row) => this.toDtoWithPricing(this.toDto(row))),
+      ),
+      expiring_soon: await Promise.all(
+        expiringSoonRows.map((row) => this.toDtoWithPricing(this.toDto(row))),
+      ),
     };
   }
 
@@ -287,7 +306,7 @@ export class ProductsService {
     }
   }
 
-  private toDto(product: Product): ProductDto {
+  private toDto(product: Product): ProductDtoWithoutPricing {
     return {
       id: product.id,
       branch_id: product.branchId,
@@ -302,6 +321,25 @@ export class ProductsService {
       expiry_date: product.expiryDate,
       created_at: product.createdAt,
       updated_at: product.updatedAt,
+    };
+  }
+
+  private async toDtoWithPricing(
+    product: Product | ProductDtoWithoutPricing,
+  ): Promise<ProductDto> {
+    const base: ProductDtoWithoutPricing =
+      "createdAt" in product ? this.toDto(product as Product) : product;
+
+    const pricing = await this.expiryPricingService.computeEffectivePrice(
+      base.sale_price,
+      base.expiry_date,
+    );
+
+    return {
+      ...base,
+      effective_price: pricing.effective_price,
+      discount_percent: pricing.discount_percent,
+      is_expiry_discount_applied: pricing.is_expiry_discount_applied,
     };
   }
 

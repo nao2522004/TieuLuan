@@ -40,6 +40,21 @@ export class ProductDto {
 
   @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
   updated_at: Date;
+
+  @ApiProperty({
+    example: 4200,
+    description: "Giá bán sau khi áp giảm giá cận hạn (nếu có), tính real-time",
+  })
+  effective_price: number;
+
+  @ApiProperty({
+    example: 30,
+    description: "% giảm giá cận hạn đang áp dụng, 0 nếu không có",
+  })
+  discount_percent: number;
+
+  @ApiProperty({ example: true })
+  is_expiry_discount_applied: boolean;
 }
 
 export class ProductResponseDto {
@@ -67,8 +82,6 @@ export class PaginatedProductResponseDto {
   timestamp: string;
 }
 
-// ─── Ngày 9: Cảnh báo tồn thấp / sắp hết hạn ──────────────────────────────
-
 export class ProductAlertsDataDto {
   @ApiProperty({
     type: [ProductDto],
@@ -95,3 +108,8 @@ export class ProductAlertsResponseDto {
   @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
   timestamp: string;
 }
+
+export type ProductDtoWithoutPricing = Omit<
+  ProductDto,
+  "effective_price" | "discount_percent" | "is_expiry_discount_applied"
+>;

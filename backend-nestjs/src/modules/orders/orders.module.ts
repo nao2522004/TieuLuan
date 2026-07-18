@@ -12,6 +12,8 @@ import { ProductsModule } from "../products/products.module";
 import { ShiftsModule } from "../shifts/shifts.module";
 import { BranchesModule } from "../branches/branches.module";
 import { ZaloPayModule } from "../zalopay/zalopay.module";
+import { PromotionsModule } from "../promotions/promotions.module";
+import { ExpiryPricingModule } from "../expiry-pricing/expiry-pricing.module";
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { ZaloPayModule } from "../zalopay/zalopay.module";
     ShiftsModule,
     BranchesModule,
     ZaloPayModule,
+    PromotionsModule,
+    ExpiryPricingModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService, OrderBranchAccessGuard],

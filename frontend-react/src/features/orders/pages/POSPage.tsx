@@ -17,6 +17,10 @@ export default function POSPage() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [fetchBarcode, setFetchBarcode] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [promotionCode, setPromotionCode] = useState("");
+  const [promotionMode, setPromotionMode] = useState<
+    "none" | "manual" | "code"
+  >("none");
   const [paymentMethod, setPaymentMethod] = useState<
     "cash" | "card" | "transfer"
   >("cash");
@@ -109,7 +113,10 @@ export default function POSPage() {
     }
     const order = await createOrderMutation.mutateAsync({
       payment_method: paymentMethod,
-      discount_amount: discount || undefined,
+      discount_amount:
+        promotionMode === "manual" ? discount || undefined : undefined,
+      promotion_code:
+        promotionMode === "code" ? promotionCode.trim() : undefined,
       items: cart.map((i) => ({
         product_id: i.product_id,
         quantity: i.quantity,
@@ -118,6 +125,8 @@ export default function POSPage() {
     setCompletedOrder(order);
     setCart([]);
     setDiscount(0);
+    setPromotionCode("");
+    setPromotionMode("none");
   };
 
   const handleConfirmPayment = async (orderId: number) => {
@@ -347,9 +356,85 @@ export default function POSPage() {
                 <span>{subtotal.toLocaleString("vi-VN")} đ</span>
               </div>
               <div className="flex-row-between" style={{ marginBottom: "8px" }}>
-                <span style={{ color: "var(--text-secondary)" }}>
-                  Giảm giá:
-                </span>
+                <div style={{ marginBottom: "16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "8px",
+                      fontSize: "0.9rem",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    Áp dụng giảm giá
+                  </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`btn ${promotionMode === "none" ? "btn-primary" : "btn-secondary"}`}
+                      style={{ flex: 1, fontSize: "0.82rem" }}
+                      onClick={() => {
+                        setPromotionMode("none");
+                        setDiscount(0);
+                        setPromotionCode("");
+                      }}
+                    >
+                      Không giảm
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn ${promotionMode === "manual" ? "btn-primary" : "btn-secondary"}`}
+                      style={{ flex: 1, fontSize: "0.82rem" }}
+                      onClick={() => {
+                        setPromotionMode("manual");
+                        setPromotionCode("");
+                      }}
+                    >
+                      Nhập tay
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn ${promotionMode === "code" ? "btn-primary" : "btn-secondary"}`}
+                      style={{ flex: 1, fontSize: "0.82rem" }}
+                      onClick={() => {
+                        setPromotionMode("code");
+                        setDiscount(0);
+                      }}
+                    >
+                      Mã khuyến mãi
+                    </button>
+                  </div>
+
+                  {promotionMode === "manual" && (
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Số tiền giảm (VND)"
+                      value={discount}
+                      onChange={(e) =>
+                        setDiscount(Math.max(0, Number(e.target.value)))
+                      }
+                    />
+                  )}
+
+                  {promotionMode === "code" && (
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="VD: TET2026"
+                      value={promotionCode}
+                      onChange={(e) =>
+                        setPromotionCode(e.target.value.toUpperCase())
+                      }
+                      style={{ textTransform: "uppercase" }}
+                    />
+                  )}
+                </div>
                 <input
                   type="number"
                   className="form-control"

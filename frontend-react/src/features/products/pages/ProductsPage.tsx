@@ -17,8 +17,12 @@ export default function ProductsPage() {
   const isAdmin = user?.role === "admin";
 
   const [search, setSearch] = useState("");
-  const [branchFilter, setBranchFilter] = useState<number | undefined>(user?.branch_id || undefined);
-  const [categoryFilter, setCategoryFilter] = useState<number | undefined>(undefined);
+  const [branchFilter, setBranchFilter] = useState<number | undefined>(
+    user?.branch_id || undefined,
+  );
+  const [categoryFilter, setCategoryFilter] = useState<number | undefined>(
+    undefined,
+  );
   const [page, setPage] = useState(1);
   const limit = 10;
 
@@ -45,7 +49,9 @@ export default function ProductsPage() {
   const deleteMutation = useDeleteProductMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
+  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(
+    undefined,
+  );
 
   const handleOpenCreateModal = () => {
     setSelectedProduct(undefined);
@@ -85,13 +91,44 @@ export default function ProductsPage() {
           <p>Danh sách và quản lý các mặt hàng sản phẩm</p>
         </div>
         <div className="flex-row-end" style={{ gap: "12px" }}>
-          <Link to="/products/alerts" className="btn btn-warning" style={{ textDecoration: "none" }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+          <Link
+            to="/products/alerts"
+            className="btn btn-warning"
+            style={{ textDecoration: "none" }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
             Cảnh báo sản phẩm
           </Link>
           {isAdmin && (
             <button className="btn btn-primary" onClick={handleOpenCreateModal}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
               Thêm sản phẩm
             </button>
           )}
@@ -115,8 +152,27 @@ export default function ProductsPage() {
                 }}
                 style={{ paddingLeft: "36px" }}
               />
-              <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <span
+                style={{
+                  position: "absolute",
+                  left: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
               </span>
             </div>
           </div>
@@ -127,7 +183,9 @@ export default function ProductsPage() {
               className="form-control"
               value={branchFilter || ""}
               onChange={(e) => {
-                setBranchFilter(e.target.value ? Number(e.target.value) : undefined);
+                setBranchFilter(
+                  e.target.value ? Number(e.target.value) : undefined,
+                );
                 setPage(1);
               }}
               disabled={!!user?.branch_id} // If cashier is bound to branch, lock it
@@ -147,7 +205,9 @@ export default function ProductsPage() {
               className="form-control"
               value={categoryFilter || ""}
               onChange={(e) => {
-                setCategoryFilter(e.target.value ? Number(e.target.value) : undefined);
+                setCategoryFilter(
+                  e.target.value ? Number(e.target.value) : undefined,
+                );
                 setPage(1);
               }}
             >
@@ -163,9 +223,18 @@ export default function ProductsPage() {
       </div>
 
       {isLoading ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Đang tải danh sách...</div>
+        <div style={{ textAlign: "center", padding: "40px" }}>
+          Đang tải danh sách...
+        </div>
       ) : products.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "40px",
+            color: "var(--text-secondary)",
+          }}
+        >
           Không tìm thấy sản phẩm nào phù hợp.
         </div>
       ) : (
@@ -187,38 +256,104 @@ export default function ProductsPage() {
               </thead>
               <tbody>
                 {products.map((product) => {
-                  const isLowStock = product.stock_quantity <= product.reorder_level;
+                  const isLowStock =
+                    product.stock_quantity <= product.reorder_level;
                   const isExpiring = product.expiry_date
-                    ? new Date(product.expiry_date).getTime() < new Date().getTime() + 7 * 24 * 60 * 60 * 1000
+                    ? new Date(product.expiry_date).getTime() <
+                      new Date().getTime() + 7 * 24 * 60 * 60 * 1000
                     : false;
 
                   return (
                     <tr key={product.id}>
-                      <td style={{ fontFamily: "monospace", color: "var(--text-secondary)" }}>{product.barcode}</td>
+                      <td
+                        style={{
+                          fontFamily: "monospace",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {product.barcode}
+                      </td>
                       <td>
                         <div style={{ fontWeight: "600" }}>{product.name}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          Chi nhánh ID: {product.branch_id} | Danh mục ID: {product.category_id}
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          Chi nhánh ID: {product.branch_id} | Danh mục ID:{" "}
+                          {product.category_id}
                         </div>
                       </td>
                       <td>{product.unit}</td>
                       <td>{product.cost_price.toLocaleString("vi-VN")} đ</td>
-                      <td style={{ fontWeight: "600", color: "var(--primary)" }}>{product.sale_price.toLocaleString("vi-VN")} đ</td>
                       <td>
-                        <span style={{
-                          fontWeight: "bold",
-                          color: isLowStock ? "var(--danger)" : "var(--success)"
-                        }}>
+                        {product.is_expiry_discount_applied ? (
+                          <div>
+                            <span
+                              style={{
+                                textDecoration: "line-through",
+                                color: "var(--text-muted)",
+                                fontSize: "0.82rem",
+                              }}
+                            >
+                              {product.sale_price.toLocaleString("vi-VN")} đ
+                            </span>
+                            <div
+                              style={{
+                                fontWeight: 700,
+                                color: "var(--danger)",
+                              }}
+                            >
+                              {product.effective_price.toLocaleString("vi-VN")}{" "}
+                              đ
+                              <span
+                                className="badge badge-danger"
+                                style={{
+                                  marginLeft: "6px",
+                                  fontSize: "0.7rem",
+                                }}
+                              >
+                                −{product.discount_percent}%
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span
+                            style={{
+                              fontWeight: "600",
+                              color: "var(--primary)",
+                            }}
+                          >
+                            {product.sale_price.toLocaleString("vi-VN")} đ
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            fontWeight: "bold",
+                            color: isLowStock
+                              ? "var(--danger)"
+                              : "var(--success)",
+                          }}
+                        >
                           {product.stock_quantity}
                         </span>
                       </td>
                       <td>{product.reorder_level}</td>
                       <td>
                         {product.expiry_date ? (
-                          <span style={{
-                            color: isExpiring ? "var(--danger)" : "var(--text-secondary)"
-                          }}>
-                            {new Date(product.expiry_date).toLocaleDateString("vi-VN")}
+                          <span
+                            style={{
+                              color: isExpiring
+                                ? "var(--danger)"
+                                : "var(--text-secondary)",
+                            }}
+                          >
+                            {new Date(product.expiry_date).toLocaleDateString(
+                              "vi-VN",
+                            )}
                           </span>
                         ) : (
                           <span style={{ color: "var(--text-muted)" }}>—</span>
@@ -230,14 +365,20 @@ export default function ProductsPage() {
                             <button
                               className="btn btn-secondary"
                               onClick={() => handleOpenEditModal(product)}
-                              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "0.85rem",
+                              }}
                             >
                               Sửa
                             </button>
                             <button
                               className="btn btn-danger"
                               onClick={() => handleDelete(product.id)}
-                              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "0.85rem",
+                              }}
                             >
                               Xóa
                             </button>
@@ -252,9 +393,18 @@ export default function ProductsPage() {
           </div>
 
           {meta && meta.total_pages > 1 && (
-            <div className="flex-row-between" style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color)" }}>
-              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                Hiển thị trang {page} / {meta.total_pages} ({meta.total_items} sản phẩm)
+            <div
+              className="flex-row-between"
+              style={{
+                padding: "16px 24px",
+                borderTop: "1px solid var(--border-color)",
+              }}
+            >
+              <span
+                style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}
+              >
+                Hiển thị trang {page} / {meta.total_pages} ({meta.total_items}{" "}
+                sản phẩm)
               </span>
               <div className="flex-row-end" style={{ gap: "8px" }}>
                 <button
@@ -267,7 +417,9 @@ export default function ProductsPage() {
                 </button>
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setPage((p) => Math.min(meta.total_pages, p + 1))}
+                  onClick={() =>
+                    setPage((p) => Math.min(meta.total_pages, p + 1))
+                  }
                   disabled={page === meta.total_pages}
                   style={{ padding: "6px 12px", fontSize: "0.85rem" }}
                 >
@@ -282,15 +434,31 @@ export default function ProductsPage() {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-box animate-slide-in" style={{ maxWidth: "680px" }}>
+          <div
+            className="modal-box animate-slide-in"
+            style={{ maxWidth: "680px" }}
+          >
             <div className="modal-title-bar">
-              <h3>{selectedProduct ? "Cập nhật sản phẩm" : "Thêm sản phẩm mới"}</h3>
+              <h3>
+                {selectedProduct ? "Cập nhật sản phẩm" : "Thêm sản phẩm mới"}
+              </h3>
               <button
                 className="toggle-sidebar-btn"
                 onClick={handleCloseModal}
                 style={{ padding: "4px" }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
             <div className="modal-content">

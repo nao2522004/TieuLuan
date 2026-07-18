@@ -27,7 +27,6 @@ export class OrderItemDto {
   unit_price: number;
 }
 
-
 export class OrderDataDto {
   @ApiProperty({ example: 1 })
   id: number;
@@ -88,6 +87,14 @@ export class OrderDataDto {
 
   @ApiPropertyOptional({ example: "240715150000123" })
   zalopay_zp_trans_id?: string | null;
+
+  @ApiPropertyOptional({
+    example: "TET2026",
+    nullable: true,
+    description:
+      "Mã khuyến mãi đã áp dụng cho đơn hàng này (nếu có), lưu lại để đối soát báo cáo.",
+  })
+  promotion_code?: string | null;
 }
 
 export class OrderResponseDto {

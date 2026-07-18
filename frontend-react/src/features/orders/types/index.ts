@@ -23,6 +23,7 @@ export interface Order {
   qr_code: string | null;
   zalopay_app_trans_id: string | null;
   zalopay_zp_trans_id: string | null;
+  promotion_code: string | null;
 }
 
 export interface CreateOrderItemPayload {
@@ -33,6 +34,7 @@ export interface CreateOrderItemPayload {
 export interface CreateOrderPayload {
   payment_method: "cash" | "card" | "transfer";
   discount_amount?: number;
+  promotion_code?: string;
   items: CreateOrderItemPayload[];
 }
 

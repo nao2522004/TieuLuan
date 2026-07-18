@@ -16,6 +16,8 @@ import { BranchesService } from "../branches/branches.service";
 import { ZaloPayService } from "../zalopay/zalopay.service";
 import * as QRCode from "qrcode";
 import { Logger } from "@nestjs/common";
+import { PromotionsService } from "../promotions/promotions.service";
+import { ExpiryPricingService } from "../expiry-pricing/expiry-pricing.service";
 
 interface LineItem {
   productId: number;
@@ -44,6 +46,8 @@ export class OrdersService {
     private readonly productsService: ProductsService,
     private readonly branchesService: BranchesService,
     private readonly zaloPayService: ZaloPayService,
+    private readonly promotionsService: PromotionsService,
+    private readonly expiryPricingService: ExpiryPricingService,
   ) {}
 
   async create(dto: CreateOrderDto, user: AuthUser): Promise<OrderDataDto> {
@@ -123,11 +127,16 @@ export class OrdersService {
           product.stockQuantity -= item.quantity;
           await productRepo.save(product);
 
+          const pricing = await this.expiryPricingService.computeEffectivePrice(
+            Number(product.salePrice),
+            product.expiryDate,
+          );
+
           lineItems.push({
             productId: product.id,
             productName: product.name,
             quantity: item.quantity,
-            unitPrice: Number(product.salePrice),
+            unitPrice: pricing.effective_price,
           });
         }
 
@@ -135,16 +144,36 @@ export class OrdersService {
           (sum, li) => sum + li.unitPrice * li.quantity,
           0,
         );
-        const discountAmount = dto.discount_amount ?? 0;
-        const totalAmount = subtotal - discountAmount;
 
-        if (totalAmount < 0) {
+        if (dto.promotion_code && dto.discount_amount) {
           throw new BusinessException(
-            "ORDER_DISCOUNT_INVALID",
+            "ORDER_DISCOUNT_PROMOTION_CONFLICT",
             400,
-            "discount_amount không được lớn hơn tổng tiền hàng.",
+            "Không được truyền đồng thời discount_amount và promotion_code.",
           );
         }
+
+        let discountAmount = dto.discount_amount ?? 0;
+        let appliedPromotionCode: string | null = null;
+
+        if (dto.promotion_code) {
+          const result =
+            await this.promotionsService.validateAndCalculateDiscount(
+              dto.promotion_code,
+              subtotal,
+            );
+          if (!result.valid) {
+            throw new BusinessException(
+              "PROMOTION_INVALID",
+              400,
+              result.reason ?? "Mã khuyến mãi không hợp lệ.",
+            );
+          }
+          discountAmount = result.discount_amount;
+          appliedPromotionCode = dto.promotion_code.trim().toUpperCase();
+        }
+
+        const totalAmount = subtotal - discountAmount;
 
         const orderRepo = manager.getRepository(Order);
         const orderEntity = orderRepo.create({
@@ -156,6 +185,7 @@ export class OrdersService {
           paymentStatus,
           discountAmount,
           totalAmount,
+          promotionCode: appliedPromotionCode,
         });
         const savedOrder = await orderRepo.save(orderEntity);
 
@@ -571,6 +601,7 @@ export class OrdersService {
       qr_code: qr?.image ?? null,
       zalopay_app_trans_id: order.zalopayAppTransId ?? null,
       zalopay_zp_trans_id: order.zalopayZpTransId ?? null,
+      promotion_code: order.promotionCode ?? null,
     };
   }
 }

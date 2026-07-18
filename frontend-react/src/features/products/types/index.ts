@@ -9,6 +9,9 @@ export interface Product {
   sale_price: number;
   stock_quantity: number;
   reorder_level: number;
+  effective_price: number;
+  discount_percent: number;
+  is_expiry_discount_applied: boolean;
   expiry_date?: string;
   created_at: string;
   updated_at: string;
