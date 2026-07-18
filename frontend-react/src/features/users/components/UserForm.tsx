@@ -248,7 +248,7 @@ function EditForm({
     defaultValues: {
       full_name: initialValues.full_name,
       branch_id: initialValues.branch_id ?? undefined,
-      role_code: initialValues.role,
+      role_code: initialValues.roles[0],
       is_active: initialValues.is_active,
     },
   });

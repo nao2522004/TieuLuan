@@ -13,7 +13,7 @@ export function RequireAuth({ roles }: Props) {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  if (roles && (!user || !roles.includes(user.role))) {
+  if (roles && (!user || !user.roles.some((r) => roles.includes(r)))) {
     return <Navigate to="/403" replace />;
   }
   return (

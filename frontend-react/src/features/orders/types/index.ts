@@ -44,6 +44,8 @@ export interface CartItem {
   barcode: string;
   unit: string;
   unit_price: number;
+  original_price?: number;
+  discount_percent?: number;
   quantity: number;
 }
 

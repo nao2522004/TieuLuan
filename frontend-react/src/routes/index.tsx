@@ -3,7 +3,6 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { authRoutes } from "@/features/auth";
 import { RequireAuth } from "@/features/auth/components/RequireAuth";
 import { ErrorBoundary } from "@/providers/ErrorBoundary";
-import { discountsRoutes } from "@/features/discounts";
 
 // Lazy-load all pages for code splitting
 const DashboardPage = lazy(

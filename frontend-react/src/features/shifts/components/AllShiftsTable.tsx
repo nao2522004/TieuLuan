@@ -8,7 +8,7 @@ import type { Shift } from "../types";
 
 export function AllShiftsTable() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles?.includes("admin");
 
   const [page, setPage] = useState(1);
   const limit = 10;
@@ -131,7 +131,9 @@ export function AllShiftsTable() {
                   <td>{s.user_full_name ?? `#${s.user_id}`}</td>
                   <td>
                     {s.cashiers && s.cashiers.length > 0 ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      <div
+                        style={{ display: "flex", flexWrap: "wrap", gap: 4 }}
+                      >
                         {s.cashiers.map((c) => (
                           <span
                             key={c.id}
@@ -148,7 +150,14 @@ export function AllShiftsTable() {
                         ))}
                       </div>
                     ) : (
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>—</span>
+                      <span
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        —
+                      </span>
                     )}
                   </td>
                   <td>{s.opening_cash.toLocaleString("vi-VN")} đ</td>

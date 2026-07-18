@@ -11,7 +11,7 @@ export function useAuth() {
   return {
     user,
     isAuthenticated,
-    isAdmin: user?.role === "admin",
+    isAdmin: user?.roles?.includes("admin") ?? false,
     login: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,
     loginError: loginMutation.error,

@@ -60,7 +60,6 @@ interface PromotionFormProps {
   isLoading?: boolean;
 }
 
-// input[type=datetime-local] cần format "yyyy-MM-ddTHH:mm", không có 'Z'/mili-giây
 function toDatetimeLocal(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);

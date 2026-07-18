@@ -25,8 +25,9 @@ export default function ExpiryPricingPage({
   const deleteMutation = useDeleteExpiryRuleMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRule, setSelectedRule] = useState;
-  ExpiryDiscountRule | (undefined > undefined);
+  const [selectedRule, setSelectedRule] = useState<
+    ExpiryDiscountRule | undefined
+  >(undefined);
 
   const sortedRules = [...rules].sort(
     (a, b) => a.days_before_expiry - b.days_before_expiry,

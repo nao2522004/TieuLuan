@@ -21,7 +21,7 @@ const ORDERS_PER_PAGE = 10;
 export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
   const { data: shift, isLoading } = useShiftDetailQuery(shiftId);
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles?.includes("admin");
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [ordersPage, setOrdersPage] = useState(1);
 

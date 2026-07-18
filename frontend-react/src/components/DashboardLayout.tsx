@@ -17,7 +17,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
-  const isAdmin = user?.roles === "admin";
+  const isAdmin = user?.roles?.includes("admin") ?? false;
 
   const menuItems = [
     {
@@ -309,7 +309,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="user-info">
             <span className="user-name">{user?.full_name}</span>
             <span className="user-role">
-              {user?.roles === "admin" ? "Quản trị viên" : "Nhân viên"}
+              {isAdmin ? "Quản trị viên" : "Nhân viên"}
             </span>
           </div>
         </div>
@@ -720,6 +720,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           }
         }
       `}</style>
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }

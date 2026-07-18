@@ -12,6 +12,12 @@ export interface GetPromotionsParams {
   is_active?: boolean;
 }
 
+export interface ValidatePromotionResult {
+  valid: boolean;
+  discount_amount: number;
+  reason: string | null;
+}
+
 export const promotionsApi = {
   getPromotions: async (
     params?: GetPromotionsParams,
@@ -53,5 +59,15 @@ export const promotionsApi = {
 
   deletePromotion: async (id: number): Promise<void> => {
     await apiClient.delete(`/promotions/${id}`);
+  },
+
+  validatePromotion: async (
+    code: string,
+    amount: number,
+  ): Promise<ValidatePromotionResult> => {
+    const res = await apiClient.get<
+      ApiSuccessResponse<ValidatePromotionResult>
+    >("/promotions/validate", { params: { code, amount } });
+    return (res as unknown as ApiSuccessResponse<ValidatePromotionResult>).data;
   },
 };

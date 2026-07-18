@@ -11,13 +11,17 @@ import type { Category, CreateCategoryPayload } from "../types";
 
 export default function CategoriesPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles?.includes("admin");
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const limit = 10;
 
-  const { data: response, isLoading } = useCategoriesQuery({ page, limit, search });
+  const { data: response, isLoading } = useCategoriesQuery({
+    page,
+    limit,
+    search,
+  });
   const categories = response?.data || [];
   const meta = response?.meta;
 
@@ -26,7 +30,9 @@ export default function CategoriesPage() {
   const deleteMutation = useDeleteCategoryMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | undefined>(undefined);
+  const [selectedCategory, setSelectedCategory] = useState<
+    Category | undefined
+  >(undefined);
 
   const handleOpenCreateModal = () => {
     setSelectedCategory(undefined);
@@ -67,15 +73,34 @@ export default function CategoriesPage() {
         </div>
         {isAdmin && (
           <button className="btn btn-primary" onClick={handleOpenCreateModal}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
             Thêm danh mục
           </button>
         )}
       </div>
 
       <div className="card" style={{ marginBottom: "24px" }}>
-        <div className="flex-row-between" style={{ flexWrap: "wrap", gap: "16px" }}>
-          <div className="search-box-container" style={{ position: "relative", flex: "1", minWidth: "260px" }}>
+        <div
+          className="flex-row-between"
+          style={{ flexWrap: "wrap", gap: "16px" }}
+        >
+          <div
+            className="search-box-container"
+            style={{ position: "relative", flex: "1", minWidth: "260px" }}
+          >
             <input
               type="text"
               className="form-control"
@@ -87,17 +112,47 @@ export default function CategoriesPage() {
               }}
               style={{ paddingLeft: "40px" }}
             />
-            <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <span
+              style={{
+                position: "absolute",
+                left: "14px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "var(--text-muted)",
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </span>
           </div>
         </div>
       </div>
 
       {isLoading ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Đang tải danh sách...</div>
+        <div style={{ textAlign: "center", padding: "40px" }}>
+          Đang tải danh sách...
+        </div>
       ) : categories.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "40px",
+            color: "var(--text-secondary)",
+          }}
+        >
           Không tìm thấy danh mục nào.
         </div>
       ) : (
@@ -121,12 +176,16 @@ export default function CategoriesPage() {
                     <td style={{ fontWeight: "600" }}>{category.name}</td>
                     <td>{category.description || "—"}</td>
                     <td>
-                      <span className={`badge ${category.is_active ? "badge-success" : "badge-danger"}`}>
+                      <span
+                        className={`badge ${category.is_active ? "badge-success" : "badge-danger"}`}
+                      >
                         {category.is_active ? "Hoạt động" : "Khóa"}
                       </span>
                     </td>
                     <td>
-                      {new Date(category.created_at).toLocaleDateString("vi-VN")}
+                      {new Date(category.created_at).toLocaleDateString(
+                        "vi-VN",
+                      )}
                     </td>
                     {isAdmin && (
                       <td style={{ textAlign: "right" }}>
@@ -155,9 +214,18 @@ export default function CategoriesPage() {
           </div>
 
           {meta && meta.total_pages > 1 && (
-            <div className="flex-row-between" style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color)" }}>
-              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                Hiển thị trang {page} / {meta.total_pages} ({meta.total_items} danh mục)
+            <div
+              className="flex-row-between"
+              style={{
+                padding: "16px 24px",
+                borderTop: "1px solid var(--border-color)",
+              }}
+            >
+              <span
+                style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}
+              >
+                Hiển thị trang {page} / {meta.total_pages} ({meta.total_items}{" "}
+                danh mục)
               </span>
               <div className="flex-row-end" style={{ gap: "8px" }}>
                 <button
@@ -170,7 +238,9 @@ export default function CategoriesPage() {
                 </button>
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setPage((p) => Math.min(meta.total_pages, p + 1))}
+                  onClick={() =>
+                    setPage((p) => Math.min(meta.total_pages, p + 1))
+                  }
                   disabled={page === meta.total_pages}
                   style={{ padding: "6px 12px", fontSize: "0.85rem" }}
                 >
@@ -185,15 +255,31 @@ export default function CategoriesPage() {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-box animate-slide-in" style={{ maxWidth: "500px" }}>
+          <div
+            className="modal-box animate-slide-in"
+            style={{ maxWidth: "500px" }}
+          >
             <div className="modal-title-bar">
-              <h3>{selectedCategory ? "Cập nhật danh mục" : "Thêm danh mục mới"}</h3>
+              <h3>
+                {selectedCategory ? "Cập nhật danh mục" : "Thêm danh mục mới"}
+              </h3>
               <button
                 className="toggle-sidebar-btn"
                 onClick={handleCloseModal}
                 style={{ padding: "4px" }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
             <div className="modal-content">

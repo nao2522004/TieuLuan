@@ -14,7 +14,7 @@ import type { Product, CreateProductPayload } from "../types";
 
 export default function ProductsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles?.includes("admin");
 
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState<number | undefined>(

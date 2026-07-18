@@ -64,7 +64,9 @@ export default function POSPage() {
           product_name: scannedProduct.name,
           barcode: scannedProduct.barcode || "",
           unit: scannedProduct.unit,
-          unit_price: scannedProduct.sale_price,
+          unit_price: scannedProduct.effective_price,
+          original_price: scannedProduct.sale_price,
+          discount_percent: scannedProduct.discount_percent,
           quantity: 1,
         },
       ];
@@ -269,9 +271,42 @@ export default function POSPage() {
                           </div>
                         </td>
                         <td>
-                          {item.unit_price.toLocaleString("vi-VN")} đ/
-                          {item.unit}
+                          {item.discount_percent &&
+                          item.discount_percent > 0 ? (
+                            <div>
+                              <span
+                                style={{
+                                  textDecoration: "line-through",
+                                  color: "var(--text-muted)",
+                                  fontSize: "0.78rem",
+                                }}
+                              >
+                                {item.original_price?.toLocaleString("vi-VN")} đ
+                              </span>
+                              <div
+                                style={{
+                                  fontWeight: 700,
+                                  color: "var(--danger)",
+                                }}
+                              >
+                                {item.unit_price.toLocaleString("vi-VN")} đ/
+                                {item.unit}
+                                <span
+                                  className="badge badge-danger"
+                                  style={{ marginLeft: 6, fontSize: "0.7rem" }}
+                                >
+                                  −{item.discount_percent}%
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span>
+                              {item.unit_price.toLocaleString("vi-VN")} đ/
+                              {item.unit}
+                            </span>
+                          )}
                         </td>
+
                         <td>
                           <div
                             style={{

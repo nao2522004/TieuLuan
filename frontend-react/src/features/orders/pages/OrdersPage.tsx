@@ -73,7 +73,7 @@ function OrderDetailModal({
 }) {
   const { data: order, isLoading } = useOrderDetailQuery(orderId);
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles?.includes("admin");
   const cancelMutation = useCancelOrderMutation();
   const confirmMutation = useConfirmPaymentMutation();
   const { data: branchDetail } = useBranchDetailQuery(order?.branch_id);
@@ -641,7 +641,7 @@ const EMPTY_FILTERS: FilterState = {
 
 export default function OrdersPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles?.includes("admin") ?? false;
   const [page, setPage] = useState(1);
   const limit = 15;
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);

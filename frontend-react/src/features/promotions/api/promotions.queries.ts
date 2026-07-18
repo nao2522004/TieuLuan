@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { promotionsApi, type GetPromotionsParams } from "./promotions.api";
+import {
+  promotionsApi,
+  type GetPromotionsParams,
+  type ValidatePromotionResult,
+} from "./promotions.api";
 import type { CreatePromotionPayload, UpdatePromotionPayload } from "../types";
+
 import { notify } from "@/lib/notify";
 
 export function usePromotionsQuery(params?: GetPromotionsParams) {
@@ -58,5 +63,16 @@ export function useDeletePromotionMutation() {
       queryClient.invalidateQueries({ queryKey: ["promotions"] });
       notify.success("Xóa chương trình khuyến mãi thành công!");
     },
+  });
+}
+
+export function useValidatePromotionMutation() {
+  return useMutation<
+    ValidatePromotionResult,
+    unknown,
+    { code: string; amount: number }
+  >({
+    mutationFn: ({ code, amount }) =>
+      promotionsApi.validatePromotion(code, amount),
   });
 }

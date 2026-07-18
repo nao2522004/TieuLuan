@@ -221,7 +221,9 @@ export default function UsersPage() {
                         )}
                       </td>
                       <td>{u.email}</td>
-                      <td>{roleLabel[u.role] ?? u.role}</td>
+                      <td>
+                        {u.roles.map((r) => roleLabel[r] ?? r).join(", ")}
+                      </td>
                       <td>{u.branch_id ? `ID: ${u.branch_id}` : "—"}</td>
                       <td>
                         <span
