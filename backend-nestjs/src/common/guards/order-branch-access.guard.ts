@@ -35,7 +35,7 @@ export class OrderBranchAccessGuard implements CanActivate {
       );
     }
 
-    if (user.role !== "admin" && user.branchId !== order.branchId) {
+    if (!user.roles.includes("admin") && user.branchId !== order.branchId) {
       throw new BusinessException(
         "FORBIDDEN",
         403,

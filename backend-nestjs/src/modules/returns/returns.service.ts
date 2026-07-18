@@ -5,9 +5,11 @@ import { Return } from "./entities/return.entity";
 import { OrderItem } from "../orders/entities/order-item.entity";
 import { Order } from "../orders/entities/order.entity";
 import { CreateReturnDto } from "./dto/create-return.dto";
+import { QueryReturnsDto } from "./dto/query-returns.dto";
 import { ReturnDto } from "./dto/return-response.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
+import { PaginationMeta } from "../../common/dto/api-response.dto";
 
 @Injectable()
 export class ReturnsService {
@@ -47,7 +49,7 @@ export class ReturnsService {
         );
       }
 
-      if (user.role !== "admin" && user.branchId !== order.branchId) {
+      if (!user.roles.includes("admin") && user.branchId !== order.branchId) {
         throw new BusinessException(
           "FORBIDDEN",
           403,
@@ -85,6 +87,94 @@ export class ReturnsService {
     });
 
     return this.toDto(saved);
+  }
+
+  async findAllPaginated(
+    query: QueryReturnsDto,
+    user: AuthUser,
+  ): Promise<{ data: ReturnDto[]; meta: PaginationMeta }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    const qb = this.dataSource
+      .getRepository(Return)
+      .createQueryBuilder("r")
+      .innerJoin(OrderItem, "oi", "r.order_item_id = oi.id")
+      .innerJoin(Order, "o", "oi.order_id = o.id");
+
+    if (!user.roles.includes("admin")) {
+      qb.andWhere("o.branch_id = :branchId", { branchId: user.branchId });
+    }
+
+    if (query.order_id !== undefined) {
+      qb.andWhere("o.id = :orderId", { orderId: query.order_id });
+    }
+
+    if (query.created_by !== undefined) {
+      qb.andWhere("r.created_by = :createdBy", { createdBy: query.created_by });
+    }
+
+    qb.orderBy("r.id", "DESC")
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    return {
+      data: rows.map((r) => this.toDto(r)),
+      meta: {
+        current_page: page,
+        limit,
+        total_items: total,
+        total_pages: Math.ceil(total / limit) || 0,
+      },
+    };
+  }
+
+  async findOneOrThrow(id: number, user: AuthUser): Promise<ReturnDto> {
+    const returnRecord = await this.dataSource.getRepository(Return).findOne({
+      where: { id },
+    });
+    if (!returnRecord) {
+      throw new BusinessException(
+        "RETURN_NOT_FOUND",
+        404,
+        "Không tìm thấy giao dịch trả hàng.",
+      );
+    }
+
+    const orderItem = await this.dataSource.getRepository(OrderItem).findOne({
+      where: { id: returnRecord.orderItemId },
+    });
+    if (!orderItem) {
+      throw new BusinessException(
+        "ORDER_ITEM_NOT_FOUND",
+        404,
+        "Không tìm thấy dòng sản phẩm trong đơn hàng tương ứng.",
+      );
+    }
+
+    const order = await this.dataSource.getRepository(Order).findOne({
+      where: { id: orderItem.orderId },
+    });
+    if (!order) {
+      throw new BusinessException(
+        "ORDER_NOT_FOUND",
+        404,
+        "Không tìm thấy đơn hàng tương ứng.",
+      );
+    }
+
+    // Kiểm tra quyền chi nhánh
+    if (!user.roles.includes("admin") && order.branchId !== user.branchId) {
+      throw new BusinessException(
+        "FORBIDDEN",
+        403,
+        "Bạn không có quyền truy cập giao dịch trả hàng của chi nhánh khác.",
+      );
+    }
+
+    return this.toDto(returnRecord);
   }
 
   private toDto(ret: Return): ReturnDto {

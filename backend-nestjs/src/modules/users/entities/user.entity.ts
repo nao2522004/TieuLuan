@@ -3,11 +3,15 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
+  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from "typeorm";
 import { Role } from "../../roles/entities/role.entity";
+import { UserRole as UserRoleJunction } from "./user-role.entity";
 
 export type UserRole = "admin" | "leader" | "cashier";
 
@@ -46,16 +50,29 @@ export class User {
   @Column({
     name: "role_id",
     type: "bigint",
+    nullable: true,
     transformer: {
       to: (value) => value,
       from: (value) => (value != null ? parseInt(value, 10) : null),
     },
   })
-  roleId: number;
+  roleId: number | null;
 
-  @ManyToOne(() => Role, { eager: true })
+  /** @deprecated Dùng user.roles thay thế */
+  @ManyToOne(() => Role, { nullable: true })
   @JoinColumn({ name: "role_id" })
-  role: Role;
+  role: Role | null;
+
+  @ManyToMany(() => Role, { eager: true })
+  @JoinTable({
+    name: "user_roles",
+    joinColumn: { name: "user_id", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "role_id", referencedColumnName: "id" },
+  })
+  roles: Role[];
+
+  @OneToMany(() => UserRoleJunction, (ur) => ur.user)
+  userRoles: UserRoleJunction[];
 
   @Column({ name: "is_active", type: "boolean", default: true })
   isActive: boolean;

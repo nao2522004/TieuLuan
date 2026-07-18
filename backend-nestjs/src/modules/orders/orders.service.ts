@@ -57,7 +57,9 @@ export class OrdersService {
       );
     }
 
-    const openShift = await this.shiftsService.findOpenShiftForBranch(user.branchId);
+    const openShift = await this.shiftsService.findOpenShiftForBranch(
+      user.branchId,
+    );
     if (!openShift) {
       throw new BusinessException(
         "SHIFT_REQUIRED",
@@ -67,7 +69,7 @@ export class OrdersService {
     }
 
     const isAssigned =
-      user.role === "admin" ||
+      user.roles.includes("admin") ||
       openShift.userId === user.id ||
       (await this.shiftsService.isUserInShift(user.id, openShift.id));
 
@@ -291,7 +293,7 @@ export class OrdersService {
         }
 
         // Kiểm tra RBAC: chỉ admin hoặc chính người tạo đơn hàng mới được xác nhận
-        if (user.role !== "admin" && order.createdBy !== user.id) {
+        if (!user.roles.includes("admin") && order.createdBy !== user.id) {
           throw new BusinessException(
             "FORBIDDEN",
             403,
@@ -337,24 +339,18 @@ export class OrdersService {
       });
     }
 
-    // Lọc theo khoảng thời gian (UTC+7: from_date = 00:00 giờ VN, to_date = cuối ngày VN)
     if (query.from_date) {
-      // Chuyển 'YYYY-MM-DD' sang đầu ngày UTC+7 (offset +07:00)
       qb.andWhere("o.created_at >= :fromDate", {
         fromDate: new Date(`${query.from_date}T00:00:00+07:00`),
       });
     }
     if (query.to_date) {
-      // Cuối ngày UTC+7
       qb.andWhere("o.created_at <= :toDate", {
         toDate: new Date(`${query.to_date}T23:59:59+07:00`),
       });
     }
 
-    // Lọc theo nhân viên tạo đơn:
-    // - Staff: luôn chỉ xem đơn của chính mình (không cho filter người khác)
-    // - Admin: có thể filter theo created_by bất kỳ
-    if (user.role !== "admin") {
+    if (!user.roles.includes("admin")) {
       qb.andWhere("o.created_by = :selfId", { selfId: user.id });
     } else if (query.created_by) {
       qb.andWhere("o.created_by = :createdBy", {
@@ -423,7 +419,7 @@ export class OrdersService {
         "Đơn hàng này đã được hủy trước đó.",
       );
     }
-    if (user.role !== "admin" && orderToCheck.createdBy !== user.id) {
+    if (!user.roles.includes("admin") && orderToCheck.createdBy !== user.id) {
       throw new BusinessException(
         "FORBIDDEN",
         403,
@@ -431,7 +427,6 @@ export class OrdersService {
       );
     }
 
-    // Nếu đơn chuyển khoản chưa thanh toán, thực hiện hủy đơn trên cổng ZaloPay trước
     if (
       orderToCheck.paymentMethod === "transfer" &&
       orderToCheck.zalopayAppTransId &&
@@ -449,7 +444,6 @@ export class OrdersService {
               "Đơn hàng đã được thanh toán trên ZaloPay, không thể hủy. Vui lòng làm thủ tục hoàn tiền.",
             );
           } else if (zpResult.sub_return_code !== -101) {
-            // -101: không tồn tại đơn trên ZaloPay (hết hạn hoặc chưa tạo), bỏ qua lỗi này
             throw new BusinessException(
               "ZALOPAY_CANCEL_ERROR",
               400,
@@ -533,7 +527,7 @@ export class OrdersService {
     user: AuthUser,
     queryBranchId?: number,
   ): number | undefined {
-    if (user.role !== "admin") {
+    if (!user.roles.includes("admin")) {
       return user.branchId ?? undefined;
     }
     return queryBranchId;

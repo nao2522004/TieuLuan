@@ -1,9 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
 import { ConfigService } from "@nestjs/config";
-import { IsNull, In, Repository } from "typeorm";
+import { DataSource, IsNull, In, Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { User } from "./entities/user.entity";
+import { UserRole as UserRoleEntity } from "./entities/user-role.entity";
+import { Role } from "../roles/entities/role.entity";
 import { Branch } from "../branches/entities/branch.entity";
 import { Shift } from "../shifts/entities/shift.entity";
 import { ShiftUser } from "../shifts/entities/shift-user.entity";
@@ -24,6 +26,10 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(UserRoleEntity)
+    private readonly userRolesRepository: Repository<UserRoleEntity>,
+    @InjectRepository(Role)
+    private readonly rolesRepository: Repository<Role>,
     @InjectRepository(Branch)
     private readonly branchesRepository: Repository<Branch>,
     @InjectRepository(Shift)
@@ -34,11 +40,14 @@ export class UsersService {
     private readonly refreshTokensRepository: Repository<RefreshToken>,
     private readonly rolesService: RolesService,
     private readonly configService: ConfigService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   findByEmail(email: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { email, deletedAt: IsNull() },
+      relations: ["roles"],
     });
   }
 
@@ -53,14 +62,17 @@ export class UsersService {
   }
 
   findById(id: number): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { id, deletedAt: IsNull() } });
+    return this.usersRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: ["roles"],
+    });
   }
 
   async findByIds(ids: number[]): Promise<User[]> {
     if (ids.length === 0) return [];
     return this.usersRepository.find({
       where: { id: In(ids), deletedAt: IsNull() },
-      relations: ["role"],
+      relations: ["roles"],
     });
   }
 
@@ -69,20 +81,34 @@ export class UsersService {
     email: string;
     passwordHash: string;
     branchId?: number | null;
-    roleCode?: string;
+    roleCodes?: string[];
   }): Promise<User> {
-    const role = await this.rolesService.findByCodeOrThrow(
-      data.roleCode ?? "cashier",
-    );
-    const user = this.usersRepository.create({
-      fullName: data.fullName,
-      email: data.email,
-      passwordHash: data.passwordHash,
-      branchId: data.branchId ?? null,
-      roleId: role.id,
-      isActive: true,
+    const codes = data.roleCodes?.length ? data.roleCodes : ["cashier"];
+    const roles = await this.resolveRolesOrThrow(codes);
+
+    return this.dataSource.transaction(async (manager) => {
+      const primaryRole = roles[0];
+
+      const user = manager.getRepository(User).create({
+        fullName: data.fullName,
+        email: data.email,
+        passwordHash: data.passwordHash,
+        branchId: data.branchId ?? null,
+        roleId: primaryRole.id,
+        isActive: true,
+      });
+      const saved = await manager.getRepository(User).save(user);
+
+      const junctionEntries = roles.map((r) =>
+        manager.getRepository(UserRoleEntity).create({
+          userId: saved.id,
+          roleId: r.id,
+        }),
+      );
+      await manager.getRepository(UserRoleEntity).save(junctionEntries);
+
+      return saved;
     });
-    return this.usersRepository.save(user);
   }
 
   async findAllPaginated(
@@ -93,14 +119,25 @@ export class UsersService {
 
     const qb = this.usersRepository
       .createQueryBuilder("u")
-      .leftJoinAndSelect("u.role", "r")
+      .leftJoinAndSelect("u.roles", "r")
       .where("u.deleted_at IS NULL");
 
     if (query.branch_id !== undefined) {
       qb.andWhere("u.branch_id = :branchId", { branchId: query.branch_id });
     }
     if (query.role_code) {
-      qb.andWhere("r.code = :roleCode", { roleCode: query.role_code });
+      qb.andWhere(
+        (qb2) =>
+          `EXISTS (${qb2
+            .subQuery()
+            .select("1")
+            .from("user_roles", "ur2")
+            .innerJoin("roles", "r2", "r2.id = ur2.role_id")
+            .where("ur2.user_id = u.id")
+            .andWhere("r2.code = :roleCode")
+            .getQuery()})`,
+        { roleCode: query.role_code },
+      );
     }
     if (query.is_active !== undefined) {
       qb.andWhere("u.is_active = :isActive", { isActive: query.is_active });
@@ -129,15 +166,28 @@ export class UsersService {
   }): Promise<UserSummaryDto[]> {
     const query = this.usersRepository
       .createQueryBuilder("u")
-      .leftJoinAndSelect("u.role", "r")
+      .leftJoinAndSelect("u.roles", "r")
       .where("u.deleted_at IS NULL")
       .andWhere("u.is_active = true");
 
     if (filters.branchId !== undefined) {
-      query.andWhere("u.branch_id = :branchId", { branchId: filters.branchId });
+      query.andWhere("u.branch_id = :branchId", {
+        branchId: filters.branchId,
+      });
     }
     if (filters.roleCode) {
-      query.andWhere("r.code = :roleCode", { roleCode: filters.roleCode });
+      query.andWhere(
+        (qb) =>
+          `EXISTS (${qb
+            .subQuery()
+            .select("1")
+            .from("user_roles", "ur2")
+            .innerJoin("roles", "r2", "r2.id = ur2.role_id")
+            .where("ur2.user_id = u.id")
+            .andWhere("r2.code = :roleCode")
+            .getQuery()})`,
+        { roleCode: filters.roleCode },
+      );
     }
 
     const rows = await query.getMany();
@@ -145,7 +195,7 @@ export class UsersService {
       id: u.id,
       full_name: u.fullName,
       email: u.email,
-      role: u.role.code,
+      roles: (u.roles ?? []).map((r) => r.code),
       branch_id: u.branchId,
       is_active: u.isActive,
     }));
@@ -168,11 +218,11 @@ export class UsersService {
       email: dto.email,
       passwordHash,
       branchId: dto.branch_id ?? null,
-      roleCode: dto.role_code ?? "cashier",
+      roleCodes: dto.role_codes?.length ? dto.role_codes : ["cashier"],
     });
 
-    const withRole = await this.findActiveEntityOrThrow(saved.id);
-    return this.toUserDto(withRole);
+    const withRoles = await this.findActiveEntityOrThrow(saved.id);
+    return this.toUserDto(withRoles);
   }
 
   async updateByAdmin(
@@ -183,16 +233,17 @@ export class UsersService {
     const user = await this.findActiveEntityOrThrow(id);
     const isSelf = user.id === currentUser.id;
 
-    if (
-      dto.role_code !== undefined &&
-      isSelf &&
-      dto.role_code !== user.role.code
-    ) {
-      throw new BusinessException(
-        "USER_CANNOT_CHANGE_OWN_ROLE",
-        400,
-        "Không thể tự thay đổi vai trò của chính mình.",
-      );
+    // Không tự thay đổi role của chính mình
+    if (dto.role_codes !== undefined && isSelf) {
+      const currentCodes = (user.roles ?? []).map((r) => r.code).sort();
+      const newCodes = [...dto.role_codes].sort();
+      if (JSON.stringify(currentCodes) !== JSON.stringify(newCodes)) {
+        throw new BusinessException(
+          "USER_CANNOT_CHANGE_OWN_ROLE",
+          400,
+          "Không thể tự thay đổi vai trò của chính mình.",
+        );
+      }
     }
     if (dto.is_active === false && isSelf) {
       throw new BusinessException(
@@ -209,25 +260,33 @@ export class UsersService {
       await this.assertBranchExists(dto.branch_id);
       user.branchId = dto.branch_id;
     }
-    if (dto.role_code !== undefined) {
-      const role = await this.rolesService.findByCodeOrThrow(dto.role_code);
-      user.roleId = role.id;
-      user.role = role;
-    }
 
     const wasActive = user.isActive;
     if (dto.is_active !== undefined) {
       user.isActive = dto.is_active;
     }
 
-    const saved = await this.usersRepository.save(user);
+    await this.usersRepository.save(user);
 
-    //khóa tài khoản -> thu hồi toàn bộ refresh_token còn hiệu lực
-    if (wasActive && dto.is_active === false) {
-      await this.revokeAllRefreshTokens(saved.id);
+    if (dto.role_codes !== undefined) {
+      const newRoles = await this.resolveRolesOrThrow(dto.role_codes);
+      await this.userRolesRepository.delete({ userId: id });
+      const entries = newRoles.map((r) =>
+        this.userRolesRepository.create({ userId: id, roleId: r.id }),
+      );
+      await this.userRolesRepository.save(entries);
+
+      user.roleId = newRoles[0]?.id ?? null;
+      await this.usersRepository.save(user);
     }
 
-    return this.toUserDto(saved);
+    // Khóa tài khoản → thu hồi toàn bộ refresh_token còn hiệu lực
+    if (wasActive && dto.is_active === false) {
+      await this.revokeAllRefreshTokens(id);
+    }
+
+    const fresh = await this.findActiveEntityOrThrow(id);
+    return this.toUserDto(fresh);
   }
 
   async remove(id: number): Promise<{ message: string }> {
@@ -296,7 +355,7 @@ export class UsersService {
     };
   }
 
-  // ─── Helpers ───
+  //  Helpers
 
   private async hashPassword(plain: string): Promise<string> {
     const saltRounds = parseInt(
@@ -343,7 +402,7 @@ export class UsersService {
   private async findActiveEntityOrThrow(id: number): Promise<User> {
     const user = await this.usersRepository.findOne({
       where: { id, deletedAt: IsNull() },
-      relations: ["role"],
+      relations: ["roles"],
     });
     if (!user) {
       throw new BusinessException(
@@ -355,12 +414,29 @@ export class UsersService {
     return user;
   }
 
+  private async resolveRolesOrThrow(codes: string[]): Promise<Role[]> {
+    const unique = [...new Set(codes)];
+    const roles = await this.rolesRepository.find({
+      where: { code: In(unique) },
+    });
+    const found = roles.map((r) => r.code);
+    const missing = unique.filter((c) => !found.includes(c));
+    if (missing.length) {
+      throw new BusinessException(
+        "ROLE_NOT_FOUND",
+        400,
+        `Không tìm thấy role: ${missing.join(", ")}.`,
+      );
+    }
+    return roles;
+  }
+
   private toUserDto(user: User): UserDto {
     return {
       id: user.id,
       full_name: user.fullName,
       email: user.email,
-      role: user.role.code,
+      roles: (user.roles ?? []).map((r) => r.code),
       branch_id: user.branchId,
       is_active: user.isActive,
       created_at: user.createdAt,

@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { PaginationMeta } from "../../../common/dto/api-response.dto";
 
 export class ReturnDto {
   @ApiProperty({ example: 1 })
@@ -43,6 +44,20 @@ export class ReturnResponseDto {
 
   @ApiProperty({ type: ReturnDto })
   data: ReturnDto;
+
+  @ApiProperty({ example: "2026-07-14T10:00:00.000Z" })
+  timestamp: string;
+}
+
+export class PaginatedReturnResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: [ReturnDto] })
+  data: ReturnDto[];
+
+  @ApiProperty({ type: PaginationMeta })
+  meta: PaginationMeta;
 
   @ApiProperty({ example: "2026-07-14T10:00:00.000Z" })
   timestamp: string;

@@ -1,5 +1,11 @@
 import { Column, CreateDateColumn, Entity, PrimaryColumn } from "typeorm";
 
+export type InventoryTransactionSource =
+  | "ORDER"
+  | "INBOUND"
+  | "ADJUSTMENT"
+  | "STOCKTAKE";
+
 export type InventoryTransactionType = "IN" | "OUT";
 
 @Entity("inventory_transactions")
@@ -26,6 +32,16 @@ export class InventoryTransaction {
 
   @Column({ type: "varchar", length: 10 })
   type: InventoryTransactionType;
+
+  @Column({
+    type: "varchar",
+    length: 20,
+    default: "ORDER",
+  })
+  source: InventoryTransactionSource;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  reason: string | null;
 
   @Column({ type: "integer" })
   quantity: number;

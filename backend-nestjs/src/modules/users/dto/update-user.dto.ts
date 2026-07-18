@@ -1,6 +1,8 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -28,15 +30,21 @@ export class UpdateUserDto {
   branch_id?: number;
 
   @ApiPropertyOptional({
-    example: "leader",
+    example: ["leader", "cashier"],
+    isArray: true,
     enum: ["admin", "leader", "cashier"],
-    description: "Không được tự đổi role của chính mình",
+    description:
+      "Danh sách role mới — thay thế toàn bộ roles hiện tại. " +
+      "Không được tự đổi role của chính mình.",
   })
   @IsOptional()
+  @IsArray({ message: "phải là mảng" })
+  @ArrayNotEmpty({ message: "cần ít nhất 1 role" })
   @IsIn(["admin", "leader", "cashier"], {
-    message: "chỉ chấp nhận 'admin', 'leader' hoặc 'cashier'",
+    each: true,
+    message: "mỗi role chỉ chấp nhận 'admin', 'leader' hoặc 'cashier'",
   })
-  role_code?: string;
+  role_codes?: string[];
 
   @ApiPropertyOptional({
     example: false,

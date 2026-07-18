@@ -31,6 +31,9 @@ import { ZaloPayModule } from "./modules/zalopay/zalopay.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { Role } from "./modules/roles/entities/role.entity";
+import { UserRole } from "./modules/users/entities/user-role.entity";
+import { Promotion } from "./modules/promotions/entities/promotion.entity";
+import { PromotionsModule } from "./modules/promotions/promotions.module";
 
 @Module({
   imports: [
@@ -55,6 +58,7 @@ import { Role } from "./modules/roles/entities/role.entity";
         database: config.get<string>("DB_NAME"),
         entities: [
           User,
+          UserRole,
           RefreshToken,
           Branch,
           Shift,
@@ -66,6 +70,7 @@ import { Role } from "./modules/roles/entities/role.entity";
           Order,
           OrderItem,
           Role,
+          Promotion,
         ],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
@@ -84,6 +89,7 @@ import { Role } from "./modules/roles/entities/role.entity";
     ZaloPayModule,
     ReportsModule,
     RolesModule,
+    PromotionsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

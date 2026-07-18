@@ -34,7 +34,7 @@ export class ShiftsService {
   ) {}
 
   async open(dto: OpenShiftDto, user: AuthUser): Promise<ShiftDataDto> {
-    if (user.role !== "admin" && user.role !== "leader") {
+    if (!user.roles.includes("admin") && !user.roles.includes("leader")) {
       throw new BusinessException(
         "FORBIDDEN",
         403,
@@ -59,7 +59,6 @@ export class ShiftsService {
       throw this.alreadyOpenError();
     }
 
-    // Check duplicate cashiers (chỉ khi có danh sách thu ngân)
     const cashierIds = dto.cashier_ids ?? [];
     const uniqueIds = [...new Set(cashierIds)];
     if (uniqueIds.length !== cashierIds.length) {
@@ -70,7 +69,6 @@ export class ShiftsService {
       );
     }
 
-    // Validate cashiers (chỉ khi có danh sách)
     let cashiers: Awaited<ReturnType<typeof this.usersService.findByIds>> = [];
     if (uniqueIds.length > 0) {
       cashiers = await this.usersService.findByIds(uniqueIds);
@@ -90,7 +88,8 @@ export class ShiftsService {
             `Thu ngân "${cashier.fullName}" hiện đã bị khóa tài khoản.`,
           );
         }
-        if (cashier.role.code !== "cashier") {
+        const hasCashierRole = cashier.roles?.some((r) => r.code === "cashier");
+        if (!hasCashierRole) {
           throw new BusinessException(
             "SHIFT_CASHIER_ROLE_INVALID",
             400,
@@ -156,7 +155,7 @@ export class ShiftsService {
           "Không tìm thấy ca làm việc.",
         );
       }
-      if (user.role !== "admin" && shift.userId !== user.id) {
+      if (!user.roles.includes("admin") && shift.userId !== user.id) {
         throw new BusinessException(
           "FORBIDDEN",
           403,
@@ -220,7 +219,7 @@ export class ShiftsService {
       .leftJoinAndSelect("s.shiftUsers", "su")
       .leftJoinAndSelect("su.user", "u");
 
-    if (user.role !== "admin") {
+    if (!user.roles.includes("admin")) {
       if (user.branchId) {
         qb.andWhere("s.branch_id = :userBranchId", {
           userBranchId: user.branchId,
@@ -272,7 +271,7 @@ export class ShiftsService {
   async findOneDetail(id: number, user: AuthUser): Promise<ShiftDetailDataDto> {
     const shift = await this.findOrThrow(id);
 
-    if (user.role !== "admin") {
+    if (!user.roles.includes("admin")) {
       if (user.branchId) {
         if (shift.branchId !== user.branchId) {
           throw new BusinessException(

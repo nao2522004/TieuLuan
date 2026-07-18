@@ -2,6 +2,7 @@ import { Module, forwardRef } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./entities/user.entity";
+import { UserRole } from "./entities/user-role.entity";
 import { Role } from "../roles/entities/role.entity";
 import { Branch } from "../branches/entities/branch.entity";
 import { Shift } from "../shifts/entities/shift.entity";
@@ -15,6 +16,7 @@ import { RolesModule } from "../roles/roles.module";
   imports: [
     TypeOrmModule.forFeature([
       User,
+      UserRole,
       Role,
       Branch,
       Shift,

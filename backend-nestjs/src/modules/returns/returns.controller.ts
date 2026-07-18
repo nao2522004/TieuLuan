@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -16,9 +19,14 @@ import {
 } from "@nestjs/swagger";
 import { ReturnsService } from "./returns.service";
 import { CreateReturnDto } from "./dto/create-return.dto";
-import { ReturnResponseDto } from "./dto/return-response.dto";
+import { QueryReturnsDto } from "./dto/query-returns.dto";
+import {
+  ReturnResponseDto,
+  PaginatedReturnResponseDto,
+} from "./dto/return-response.dto";
 import { ApiErrorResponse } from "../../common/dto/api-response.dto";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { ParseIntIdPipe } from "../../common/pipes/parse-int-id.pipe";
 
 @ApiTags("returns")
 @ApiBearerAuth()
@@ -55,5 +63,30 @@ export class ReturnsController {
   })
   create(@Body() dto: CreateReturnDto, @Req() req: Request) {
     return this.returnsService.create(dto, req.user!);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary:
+      "Danh sách lịch sử trả hàng (phân trang). Lọc theo order_id/created_by. " +
+      "Nếu không phải admin, chỉ được xem lịch sử thuộc chi nhánh của mình.",
+  })
+  @ApiResponse({ status: 200, type: PaginatedReturnResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponse })
+  findAll(@Query() query: QueryReturnsDto, @Req() req: Request) {
+    return this.returnsService.findAllPaginated(query, req.user!);
+  }
+
+  @Get(":id")
+  @ApiOperation({
+    summary:
+      "Xem chi tiết một giao dịch hoàn trả. " +
+      "Nếu không phải admin, chỉ được xem nếu giao dịch đó thuộc chi nhánh của mình.",
+  })
+  @ApiResponse({ status: 200, type: ReturnResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponse })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  findOne(@Param("id", ParseIntIdPipe) id: number, @Req() req: Request) {
+    return this.returnsService.findOneOrThrow(id, req.user!);
   }
 }

@@ -53,7 +53,7 @@ export class UsersController {
       id: user.id,
       email: user.email,
       full_name: user.fullName,
-      role: user.role,
+      roles: user.roles,
       branch_id: user.branchId,
     };
   }

@@ -11,8 +11,13 @@ export class UserSummaryDto {
   @ApiProperty({ example: "cashier2@store.local" })
   email: string;
 
-  @ApiProperty({ example: "cashier", enum: ["admin", "leader", "cashier"] })
-  role: string;
+  @ApiProperty({
+    example: ["cashier"],
+    description: "Danh sách roles của user — 1 user có thể có nhiều role",
+    isArray: true,
+    enum: ["admin", "leader", "cashier"],
+  })
+  roles: string[];
 
   @ApiProperty({ example: 1, nullable: true })
   branch_id: number | null;
@@ -42,8 +47,13 @@ export class MeDataDto {
   @ApiProperty({ example: "Trưởng ca chính" })
   full_name: string;
 
-  @ApiProperty({ example: "leader", enum: ["admin", "leader", "cashier"] })
-  role: string;
+  @ApiProperty({
+    example: ["leader"],
+    description: "Danh sách roles",
+    isArray: true,
+    enum: ["admin", "leader", "cashier"],
+  })
+  roles: string[];
 
   @ApiProperty({ example: 1, nullable: true })
   branch_id: number | null;
@@ -70,8 +80,13 @@ export class UserDto {
   @ApiProperty({ example: "cashier2@store.local" })
   email: string;
 
-  @ApiProperty({ example: "cashier", enum: ["admin", "leader", "cashier"] })
-  role: string;
+  @ApiProperty({
+    example: ["cashier"],
+    isArray: true,
+    enum: ["admin", "leader", "cashier"],
+    description: "Danh sách roles đang được gán",
+  })
+  roles: string[];
 
   @ApiProperty({ example: 1, nullable: true })
   branch_id: number | null;

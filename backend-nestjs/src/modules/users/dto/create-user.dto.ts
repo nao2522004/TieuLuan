@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsEmail,
   IsIn,
   IsInt,
@@ -41,13 +43,20 @@ export class CreateUserDto {
   branch_id?: number;
 
   @ApiPropertyOptional({
-    example: "cashier",
+    example: ["cashier"],
+    description:
+      "Danh sách role codes — 1 user có thể có nhiều role đồng thời. " +
+      "Mặc định ['cashier'] nếu không truyền.",
+    isArray: true,
     enum: ["admin", "leader", "cashier"],
-    default: "cashier",
+    default: ["cashier"],
   })
   @IsOptional()
+  @IsArray({ message: "phải là mảng" })
+  @ArrayNotEmpty({ message: "cần ít nhất 1 role" })
   @IsIn(["admin", "leader", "cashier"], {
-    message: "chỉ chấp nhận 'admin', 'leader' hoặc 'cashier'",
+    each: true,
+    message: "mỗi role chỉ chấp nhận 'admin', 'leader' hoặc 'cashier'",
   })
-  role_code?: string;
+  role_codes?: string[];
 }

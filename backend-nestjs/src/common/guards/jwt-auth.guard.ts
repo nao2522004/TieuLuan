@@ -10,7 +10,7 @@ export interface AuthUser {
   id: number;
   email: string;
   fullName: string;
-  role: UserRole;
+  roles: UserRole[];
   branchId: number | null;
 }
 
@@ -44,7 +44,7 @@ export class JwtAuthGuard implements CanActivate {
     }
     const token = authHeader.slice("Bearer ".length).trim();
 
-    let payload: { sub: number; email: string; role: UserRole };
+    let payload: { sub: number; email: string; roles: UserRole[] };
     try {
       payload = await this.jwtService.verifyAsync(token, {
         secret: this.configService.get<string>("JWT_ACCESS_SECRET"),
@@ -53,16 +53,20 @@ export class JwtAuthGuard implements CanActivate {
       throw unauthorized();
     }
 
+    // Load user từ DB để đảm bảo tài khoản chưa bị xóa/khóa sau khi token cấp
     const user = await this.usersService.findById(payload.sub);
     if (!user || !user.isActive) {
       throw unauthorized();
     }
 
+    // Lấy roles mảng từ quan hệ ManyToMany (đã eager load trong User entity)
+    const userRoles = (user.roles ?? []).map((r) => r.code as UserRole);
+
     request.user = {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
-      role: user.role.code as UserRole,
+      roles: userRoles,
       branchId: user.branchId ?? null,
     };
     return true;
