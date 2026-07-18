@@ -4,7 +4,7 @@ export interface User {
   id: number;
   full_name: string;
   email: string;
-  role: UserRole;
+  roles: UserRole;
   branch_id: number | null;
   is_active: boolean;
   created_at: string;

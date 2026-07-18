@@ -29,4 +29,9 @@ export const queryKeys = {
   reports: {
     revenue: (params: unknown) => ["reports", "revenue", params] as const,
   },
+  promotions: {
+    all: () => ["promotions"] as const,
+    list: (params: unknown) => ["promotions", "list", params] as const,
+    detail: (id: number) => ["promotions", "detail", id] as const,
+  },
 } as const;

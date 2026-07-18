@@ -17,7 +17,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.roles === "admin";
 
   const menuItems = [
     {
@@ -253,6 +253,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </svg>
         ),
       },
+      {
+        path: "/promotions",
+        label: "Mã khuyến mãi",
+        icon: (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a2 2 0 0 0-2 2v5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l6.59-6.59a2 2 0 0 0 0-2.82Z" />
+            <circle cx="7.5" cy="7.5" r="1.5" />
+          </svg>
+        ),
+      },
     );
   }
 
@@ -289,7 +309,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="user-info">
             <span className="user-name">{user?.full_name}</span>
             <span className="user-role">
-              {user?.role === "admin" ? "Quản trị viên" : "Nhân viên"}
+              {user?.roles === "admin" ? "Quản trị viên" : "Nhân viên"}
             </span>
           </div>
         </div>

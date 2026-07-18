@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { authRoutes } from "@/features/auth";
 import { RequireAuth } from "@/features/auth/components/RequireAuth";
 import { ErrorBoundary } from "@/providers/ErrorBoundary";
+import { discountsRoutes } from "@/features/discounts";
 
 // Lazy-load all pages for code splitting
 const DashboardPage = lazy(
@@ -26,6 +27,9 @@ const OrdersPage = lazy(() => import("@/features/orders/pages/OrdersPage"));
 const ReturnsPage = lazy(() => import("@/features/returns/pages/ReturnsPage"));
 const ReportsPage = lazy(() => import("@/features/reports/pages/ReportsPage"));
 const UsersPage = lazy(() => import("@/features/users/pages/UsersPage"));
+const PromotionsPage = lazy(
+  () => import("@/features/promotions/pages/PromotionsPage"),
+);
 const ExpiryPricingPage = lazy(
   () => import("@/features/expiry-pricing/pages/ExpiryPricingPage"),
 );
@@ -95,6 +99,7 @@ export const router = createBrowserRouter([
       { path: "/reports", element: withSuspense(<ReportsPage />) },
       { path: "/users", element: withSuspense(<UsersPage />) },
       { path: "/expiry-pricing", element: withSuspense(<ExpiryPricingPage />) },
+      { path: "/promotions", element: withSuspense(<PromotionsPage />) },
     ],
   },
 ]);

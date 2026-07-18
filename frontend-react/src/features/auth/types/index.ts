@@ -4,7 +4,7 @@ export interface PublicUser {
   id: number;
   full_name: string;
   email: string;
-  role: UserRole;
+  roles: UserRole;
   is_active: boolean;
   branch_id: number | null;
   created_at: string;

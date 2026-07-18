@@ -12,16 +12,21 @@ import type {
   CreateExpiryDiscountRulePayload,
 } from "../types";
 
-export default function ExpiryPricingPage() {
+interface ExpiryPricingPageProps {
+  hideHeader?: boolean;
+}
+
+export default function ExpiryPricingPage({
+  hideHeader,
+}: ExpiryPricingPageProps = {}) {
   const { data: rules = [], isLoading } = useExpiryRulesQuery();
   const createMutation = useCreateExpiryRuleMutation();
   const updateMutation = useUpdateExpiryRuleMutation();
   const deleteMutation = useDeleteExpiryRuleMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRule, setSelectedRule] = useState<
-    ExpiryDiscountRule | undefined
-  >(undefined);
+  const [selectedRule, setSelectedRule] = useState;
+  ExpiryDiscountRule | (undefined > undefined);
 
   const sortedRules = [...rules].sort(
     (a, b) => a.days_before_expiry - b.days_before_expiry,
@@ -63,33 +68,59 @@ export default function ExpiryPricingPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="card-header" style={{ marginBottom: "24px" }}>
-        <div>
-          <h2>⏳ Giảm giá theo hạn sử dụng</h2>
-          <p>
-            Cấu hình bậc thang: sản phẩm còn bao nhiêu ngày tới hạn thì tự động
-            giảm bao nhiêu %. Áp dụng real-time ở Products, POS, cảnh báo tồn
-            kho.
-          </p>
+      {!hideHeader ? (
+        <div className="card-header" style={{ marginBottom: "24px" }}>
+          <div>
+            <h2>⏳ Giảm giá theo hạn sử dụng</h2>
+            <p>
+              Cấu hình bậc thang: sản phẩm còn bao nhiêu ngày tới hạn thì tự
+              động giảm bao nhiêu %. Áp dụng real-time ở Products, POS, cảnh báo
+              tồn kho.
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={handleOpenCreate}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Thêm quy tắc
+          </button>
         </div>
-        <button className="btn btn-primary" onClick={handleOpenCreate}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Thêm quy tắc
-        </button>
-      </div>
+      ) : (
+        <div className="flex-row-between" style={{ marginBottom: "20px" }}>
+          <p style={{ margin: 0 }}>
+            Bậc thang tự động: còn bao nhiêu ngày tới hạn thì giảm bao nhiêu %,
+            áp dụng real-time ở Products, POS, cảnh báo tồn kho.
+          </p>
+          <button className="btn btn-primary" onClick={handleOpenCreate}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Thêm quy tắc
+          </button>
+        </div>
+      )}
 
       <div
         className="card"
