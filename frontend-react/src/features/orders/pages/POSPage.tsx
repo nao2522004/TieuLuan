@@ -256,7 +256,7 @@ export default function POSPage() {
                               color: "var(--text-muted)",
                             }}
                           >
-                            {item.barcode}
+                            Mã vạch: {item.barcode}
                           </div>
                         </td>
                         <td>

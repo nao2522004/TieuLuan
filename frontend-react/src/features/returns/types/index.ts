@@ -5,6 +5,7 @@ export interface Return {
   refund_amount: number;
   reason: string | null;
   created_by: number;
+  created_by_name: string | null;
   created_at: string;
   zalopay_m_refund_id: string | null;
   zalopay_refund_id: string | null;

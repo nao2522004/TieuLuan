@@ -34,6 +34,7 @@ import { Role } from "./modules/roles/entities/role.entity";
 import { UserRole } from "./modules/users/entities/user-role.entity";
 import { Promotion } from "./modules/promotions/entities/promotion.entity";
 import { PromotionsModule } from "./modules/promotions/promotions.module";
+import { ReturnsModule } from "./modules/returns/returns.module";
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { PromotionsModule } from "./modules/promotions/promotions.module";
     ReportsModule,
     RolesModule,
     PromotionsModule,
+    ReturnsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

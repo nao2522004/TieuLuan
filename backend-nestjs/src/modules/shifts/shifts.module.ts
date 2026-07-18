@@ -8,10 +8,11 @@ import { ShiftsController } from "./shifts.controller";
 import { ShiftsService } from "./shifts.service";
 import { UsersModule } from "../users/users.module";
 import { BranchesModule } from "../branches/branches.module";
+import { Return } from "../returns/entities/return.entity";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Shift, ShiftUser, Order]),
+    TypeOrmModule.forFeature([Shift, ShiftUser, Order, Return]),
     JwtModule.register({}),
     UsersModule,
     BranchesModule,

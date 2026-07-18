@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, PrimaryColumn, ManyToOne, JoinColumn } from "typeorm";
+import { User } from "../../users/entities/user.entity";
 
 @Entity("returns")
 export class Return {
@@ -40,6 +41,10 @@ export class Return {
     },
   })
   createdBy: number;
+
+  @ManyToOne(() => User, { eager: true })
+  @JoinColumn({ name: "created_by" })
+  creator?: User;
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;

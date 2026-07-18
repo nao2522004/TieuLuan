@@ -6,6 +6,7 @@ import { OrderItem } from "../orders/entities/order-item.entity";
 import { Order } from "../orders/entities/order.entity";
 import { ReturnsController } from "./returns.controller";
 import { ReturnsService } from "./returns.service";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { UsersModule } from "../users/users.module";
 
 @Module({
@@ -15,7 +16,7 @@ import { UsersModule } from "../users/users.module";
     UsersModule,
   ],
   controllers: [ReturnsController],
-  providers: [ReturnsService],
+  providers: [ReturnsService, JwtAuthGuard],
   exports: [ReturnsService],
 })
 export class ReturnsModule {}

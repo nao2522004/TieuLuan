@@ -262,6 +262,60 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
             </div>
 
             <div
+              style={{
+                padding: 14,
+                background: "rgba(239,68,68,0.05)",
+                borderRadius: 8,
+                border: "1px solid rgba(239,68,68,0.15)",
+                marginBottom: 16,
+              }}
+            >
+              <div className="flex-row-between">
+                <span style={{ color: "var(--text-secondary)" }}>
+                  Đã hoàn trả (tiền mặt)
+                </span>
+                <strong style={{ color: "var(--danger)" }}>
+                  − {shift.cash_returns_total.toLocaleString("vi-VN")} đ
+                </strong>
+              </div>
+              {shift.card_returns_total > 0 && (
+                <div className="flex-row-between" style={{ marginTop: 8 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Đã hoàn trả (thẻ)
+                  </span>
+                  <strong style={{ color: "var(--danger)" }}>
+                    − {shift.card_returns_total.toLocaleString("vi-VN")} đ
+                  </strong>
+                </div>
+              )}
+              {shift.transfer_returns_total > 0 && (
+                <div className="flex-row-between" style={{ marginTop: 8 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Đã hoàn trả (chuyển khoản)
+                  </span>
+                  <strong style={{ color: "var(--danger)" }}>
+                    − {shift.transfer_returns_total.toLocaleString("vi-VN")} đ
+                  </strong>
+                </div>
+              )}
+              <div
+                className="flex-row-between"
+                style={{
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: "1px dashed var(--border-color)",
+                }}
+              >
+                <span style={{ fontWeight: 700 }}>
+                  Quỹ dự kiến (real-time, đã trừ trả hàng tiền mặt)
+                </span>
+                <strong style={{ fontSize: "1.05rem" }}>
+                  {shift.live_expected_cash.toLocaleString("vi-VN")} đ
+                </strong>
+              </div>
+            </div>
+
+            <div
               className="table-container"
               style={{ maxHeight: 280, overflowY: "auto" }}
             >
@@ -348,6 +402,76 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* Danh sách trả hàng trong ca */}
+            {shift.returns.length > 0 && (
+              <>
+                <h4
+                  style={{
+                    margin: "20px 0 8px",
+                    fontSize: "0.9rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  ↩️ Lịch sử trả hàng ({shift.returns.length} giao dịch)
+                </h4>
+                <div
+                  className="table-container"
+                  style={{ maxHeight: 220, overflowY: "auto" }}
+                >
+                  <table className="table" style={{ margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Đơn gốc</th>
+                        <th>Sản phẩm</th>
+                        <th>SL trả</th>
+                        <th>PT thanh toán</th>
+                        <th>Người xử lý</th>
+                        <th style={{ textAlign: "right" }}>Hoàn tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shift.returns.map((r) => (
+                        <tr key={r.id}>
+                          <td>#{r.order_id}</td>
+                          <td>
+                            <div style={{ fontSize: "0.85rem" }}>
+                              {r.product_name ?? `Item #${r.order_item_id}`}
+                            </div>
+                            {r.reason && (
+                              <div
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "var(--text-muted)",
+                                }}
+                              >
+                                Lý do: {r.reason}
+                              </div>
+                            )}
+                          </td>
+                          <td>{r.quantity}</td>
+                          <td>
+                            {methodLabel[r.payment_method] ?? r.payment_method}
+                          </td>
+                          <td style={{ fontSize: "0.85rem" }}>
+                            {r.created_by_name ?? `#${r.created_by}`}
+                          </td>
+                          <td
+                            style={{
+                              textAlign: "right",
+                              fontWeight: 700,
+                              color: "var(--danger)",
+                            }}
+                          >
+                            − {r.refund_amount.toLocaleString("vi-VN")} đ
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
 
             {canClose && (

@@ -17,6 +17,8 @@ import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { BranchesService } from "../branches/branches.service";
 import { UsersService } from "../users/users.service";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
+import { Return } from "../returns/entities/return.entity";
+import { ShiftReturnSummaryDto } from "./dto/shift-response.dto";
 
 @Injectable()
 export class ShiftsService {
@@ -27,11 +29,36 @@ export class ShiftsService {
     private readonly shiftUsersRepository: Repository<ShiftUser>,
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
-    @InjectDataSource()
-    private readonly dataSource: DataSource,
+    @InjectRepository(Return)
+    private readonly returnsRepository: Repository<Return>, // thêm
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly branchesService: BranchesService,
     private readonly usersService: UsersService,
   ) {}
+
+  private async loadReturnsTotalsByShift(
+    returnsRepo: Repository<Return>,
+    shiftId: number,
+  ): Promise<{ cash: number; card: number; transfer: number }> {
+    const rows = await returnsRepo
+      .createQueryBuilder("r")
+      .innerJoin("order_items", "oi", "oi.id = r.order_item_id")
+      .innerJoin("orders", "o", "o.id = oi.order_id")
+      .select("o.payment_method", "paymentMethod")
+      .addSelect("COALESCE(SUM(r.refund_amount), 0)", "sum")
+      .where("o.shift_id = :shiftId", { shiftId })
+      .andWhere("o.status = 'completed'")
+      .andWhere("o.deleted_at IS NULL")
+      .groupBy("o.payment_method")
+      .getRawMany<{ paymentMethod: string; sum: string }>();
+
+    const totals = { cash: 0, card: 0, transfer: 0 };
+    for (const row of rows) {
+      const key = row.paymentMethod as keyof typeof totals;
+      if (key in totals) totals[key] = Number(row.sum);
+    }
+    return totals;
+  }
 
   async open(dto: OpenShiftDto, user: AuthUser): Promise<ShiftDataDto> {
     if (!user.roles.includes("admin") && !user.roles.includes("leader")) {
@@ -180,9 +207,16 @@ export class ShiftsService {
         .andWhere("o.deleted_at IS NULL")
         .getRawOne<{ sum: string }>();
 
+      const returnsTotals = await this.loadReturnsTotalsByShift(
+        manager.getRepository(Return),
+        id,
+      );
+
       shift.closingCash = dto.closing_cash;
       shift.expectedCash =
-        Number(shift.openingCash) + Number(cashRevenue?.sum ?? 0);
+        Number(shift.openingCash) +
+        Number(cashRevenue?.sum ?? 0) -
+        returnsTotals.cash;
       shift.note = dto.note ?? shift.note;
       shift.closedAt = new Date();
 
@@ -294,11 +328,10 @@ export class ShiftsService {
       order: { id: "ASC" },
     });
 
-    let ordersCount = 0;
-    let cashTotal = 0;
-    let cardTotal = 0;
-    let transferTotal = 0;
-
+    let ordersCount = 0,
+      cashTotal = 0,
+      cardTotal = 0,
+      transferTotal = 0;
     for (const o of orders) {
       if (o.status !== "completed") continue;
       ordersCount += 1;
@@ -308,10 +341,52 @@ export class ShiftsService {
       else if (o.paymentMethod === "transfer") transferTotal += amount;
     }
 
+    const returnRows = await this.returnsRepository
+      .createQueryBuilder("r")
+      .innerJoin("order_items", "oi", "oi.id = r.order_item_id")
+      .innerJoin("orders", "o", "o.id = oi.order_id")
+      .select([
+        "r.id AS id",
+        "o.id AS order_id",
+        "oi.id AS order_item_id",
+        "oi.product_name AS product_name",
+        "r.quantity AS quantity",
+        "r.refund_amount AS refund_amount",
+        "o.payment_method AS payment_method",
+        "r.reason AS reason",
+        "r.created_by AS created_by",
+        "r.created_at AS created_at",
+      ])
+      .where("o.shift_id = :shiftId", { shiftId: id })
+      .andWhere("o.status = 'completed'")
+      .andWhere("o.deleted_at IS NULL")
+      .orderBy("r.id", "ASC")
+      .getRawMany<{
+        id: string;
+        order_id: string;
+        order_item_id: string;
+        product_name: string | null;
+        quantity: number;
+        refund_amount: string;
+        payment_method: string;
+        reason: string | null;
+        created_by: string;
+        created_at: Date;
+      }>();
+
+    const returnsTotals = { cash: 0, card: 0, transfer: 0 };
+    for (const r of returnRows) {
+      const key = r.payment_method as keyof typeof returnsTotals;
+      if (key in returnsTotals) returnsTotals[key] += Number(r.refund_amount);
+    }
+    const liveExpectedCash =
+      Number(shift.openingCash) + cashTotal - returnsTotals.cash;
+
     // Batch lookup tên nhân viên tạo từng đơn — tránh N+1 khi ca có nhiều đơn
-    const creatorNames = await this.usersService.findNamesByIds(
-      orders.map((o) => o.createdBy),
-    );
+    const creatorNames = await this.usersService.findNamesByIds([
+      ...orders.map((o) => o.createdBy),
+      ...returnRows.map((r) => Number(r.created_by)),
+    ]);
 
     const orderSummaries: ShiftOrderSummaryDto[] = orders.map((o) => ({
       id: o.id,
@@ -322,6 +397,20 @@ export class ShiftsService {
       status: o.status,
       total_amount: Number(o.totalAmount),
       created_at: o.createdAt,
+    }));
+
+    const returnSummaries: ShiftReturnSummaryDto[] = returnRows.map((r) => ({
+      id: Number(r.id),
+      order_id: Number(r.order_id),
+      order_item_id: Number(r.order_item_id),
+      product_name: r.product_name,
+      quantity: r.quantity,
+      refund_amount: Number(r.refund_amount),
+      payment_method: r.payment_method,
+      reason: r.reason,
+      created_by: Number(r.created_by),
+      created_by_name: creatorNames.get(Number(r.created_by)) ?? null,
+      created_at: r.created_at,
     }));
 
     const { branchNames, userNames } = await this.loadNames(
@@ -339,9 +428,15 @@ export class ShiftsService {
       cash_orders_total: cashTotal,
       card_orders_total: cardTotal,
       transfer_orders_total: transferTotal,
+      cash_returns_total: returnsTotals.cash,
+      card_returns_total: returnsTotals.card,
+      transfer_returns_total: returnsTotals.transfer,
+      live_expected_cash: liveExpectedCash,
       orders: orderSummaries,
+      returns: returnSummaries,
     };
   }
+
   async findOpenShiftForBranch(branchId: number): Promise<Shift | null> {
     return this.shiftsRepository.findOne({
       where: { branchId, closedAt: IsNull() },
@@ -388,10 +483,6 @@ export class ShiftsService {
     );
   }
 
-  /**
-   * Batch lookup branch_name / user_full_name cho 1 lô shift, tránh N+1
-   * query khi trả list. Dùng chung cho findAll() và findOneDetail().
-   */
   private async loadNames(
     branchIds: number[],
     userIds: number[],

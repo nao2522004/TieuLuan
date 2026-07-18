@@ -185,6 +185,7 @@ export class ReturnsService {
       refund_amount: Number(ret.refundAmount),
       reason: ret.reason,
       created_by: ret.createdBy,
+      created_by_name: ret.creator?.fullName ?? null,
       created_at: ret.createdAt,
       zalopay_m_refund_id: ret.zalopayMRefundId ?? null,
       zalopay_refund_id: ret.zalopayRefundId ?? null,

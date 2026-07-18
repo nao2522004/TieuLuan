@@ -25,6 +25,9 @@ export class ReturnDto {
   @ApiProperty({ example: 1, description: "ID nhân viên xử lý trả hàng" })
   created_by: number;
 
+  @ApiProperty({ example: "Nguyễn Văn A", nullable: true, description: "Tên nhân viên xử lý" })
+  created_by_name: string | null;
+
   @ApiProperty({ example: "2026-07-14T10:00:00.000Z" })
   created_at: Date;
 

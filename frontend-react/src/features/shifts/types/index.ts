@@ -30,12 +30,31 @@ export interface ShiftOrderSummary {
   created_at: string;
 }
 
+export interface ShiftReturnSummary {
+  id: number;
+  order_id: number;
+  order_item_id: number;
+  product_name: string | null;
+  quantity: number;
+  refund_amount: number;
+  payment_method: "cash" | "card" | "transfer";
+  reason: string | null;
+  created_by: number;
+  created_by_name: string | null;
+  created_at: string;
+}
+
 export interface ShiftDetail extends Shift {
   orders_count: number;
   cash_orders_total: number;
   card_orders_total: number;
   transfer_orders_total: number;
+  cash_returns_total: number;
+  card_returns_total: number;
+  transfer_returns_total: number;
+  live_expected_cash: number;
   orders: ShiftOrderSummary[];
+  returns: ShiftReturnSummary[]; // mới
 }
 
 export interface OpenShiftPayload {
