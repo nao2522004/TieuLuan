@@ -6,6 +6,7 @@ import { Product } from "./entities/product.entity";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
+import { QueryProductAlertsDto, QueryExpiringSoonDto } from "./dto/query-product-alerts.dto";
 import {
   ProductDto,
   ProductDtoWithoutPricing,
@@ -248,6 +249,79 @@ export class ProductsService {
       expiring_soon: await Promise.all(
         expiringSoonRows.map((row) => this.toDtoWithPricing(this.toDto(row))),
       ),
+    };
+  }
+
+  async findLowStockPaginated(
+    query: QueryProductAlertsDto,
+    user: AuthUser,
+  ): Promise<{ data: ProductDto[]; meta: PaginationMeta }> {
+    const branchId = this.resolveBranchId(user, query.branch_id);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    const qb = this.productsRepository
+      .createQueryBuilder("p")
+      .where("p.branch_id = :branchId", { branchId })
+      .andWhere("p.deleted_at IS NULL")
+      .andWhere("p.stock_quantity <= p.reorder_level")
+      .orderBy("p.stock_quantity", "ASC");
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    const data = await Promise.all(
+      rows.map((row) => this.toDtoWithPricing(row)),
+    );
+
+    return {
+      data,
+      meta: {
+        current_page: page,
+        limit,
+        total_items: total,
+        total_pages: Math.ceil(total / limit) || 0,
+      },
+    };
+  }
+
+  async findExpiringSoonPaginated(
+    query: QueryExpiringSoonDto,
+    user: AuthUser,
+  ): Promise<{ data: ProductDto[]; meta: PaginationMeta }> {
+    const branchId = this.resolveBranchId(user, query.branch_id);
+    const alertDays = query.days ?? this.getExpiryAlertDays();
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    const qb = this.productsRepository
+      .createQueryBuilder("p")
+      .where("p.branch_id = :branchId", { branchId })
+      .andWhere("p.deleted_at IS NULL")
+      .andWhere("p.expiry_date IS NOT NULL")
+      .andWhere(
+        "p.expiry_date <= (CURRENT_DATE + make_interval(days => :alertDays))",
+        { alertDays },
+      )
+      .orderBy("p.expiry_date", "ASC");
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    const data = await Promise.all(
+      rows.map((row) => this.toDtoWithPricing(row)),
+    );
+
+    return {
+      data,
+      meta: {
+        current_page: page,
+        limit,
+        total_items: total,
+        total_pages: Math.ceil(total / limit) || 0,
+      },
     };
   }
 

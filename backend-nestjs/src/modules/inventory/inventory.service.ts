@@ -165,6 +165,20 @@ export class InventoryService {
       qb.andWhere("tx.source = :source", { source: query.source });
     }
 
+    if (query.start_date) {
+      const fromDate = query.start_date.includes("T")
+        ? new Date(query.start_date)
+        : new Date(`${query.start_date}T00:00:00+07:00`);
+      qb.andWhere("tx.created_at >= :startDate", { startDate: fromDate });
+    }
+    if (query.end_date) {
+      const toDate = query.end_date.includes("T")
+        ? new Date(query.end_date)
+        : new Date(`${query.end_date}T23:59:59+07:00`);
+      qb.andWhere("tx.created_at <= :endDate", { endDate: toDate });
+    }
+
+
     qb.orderBy("tx.id", "DESC")
       .skip((page - 1) * limit)
       .take(limit);

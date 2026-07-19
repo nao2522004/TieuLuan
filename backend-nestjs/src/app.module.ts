@@ -37,6 +37,9 @@ import { PromotionsModule } from "./modules/promotions/promotions.module";
 import { ReturnsModule } from "./modules/returns/returns.module";
 import { ExpiryDiscountRule } from "./modules/expiry-pricing/entities/expiry-discount-rule.entity";
 import { ExpiryPricingModule } from "./modules/expiry-pricing/expiry-pricing.module";
+import { Stocktake } from "./modules/stocktakes/entities/stocktake.entity";
+import { StocktakeItem } from "./modules/stocktakes/entities/stocktake-item.entity";
+import { StocktakesModule } from "./modules/stocktakes/stocktakes.module";
 
 @Module({
   imports: [
@@ -75,6 +78,8 @@ import { ExpiryPricingModule } from "./modules/expiry-pricing/expiry-pricing.mod
           Role,
           Promotion,
           ExpiryDiscountRule,
+          Stocktake,
+          StocktakeItem,
         ],
         synchronize: false,
         logging: config.get<string>("NODE_ENV") === "development",
@@ -96,6 +101,7 @@ import { ExpiryPricingModule } from "./modules/expiry-pricing/expiry-pricing.mod
     PromotionsModule,
     ReturnsModule,
     ExpiryPricingModule,
+    StocktakesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

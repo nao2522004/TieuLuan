@@ -7,6 +7,7 @@ import {
   IsPositive,
   Max,
   Min,
+  IsDateString,
 } from "class-validator";
 import { InventoryTransactionSource, InventoryTransactionType } from "../entities/inventory-transaction.entity";
 
@@ -57,4 +58,21 @@ export class QueryInventoryTransactionsDto {
     message: "chỉ chấp nhận 'ORDER', 'INBOUND', 'ADJUSTMENT', hoặc 'STOCKTAKE'",
   })
   source?: InventoryTransactionSource;
+
+  @ApiPropertyOptional({
+    example: "2026-07-01",
+    description: "Ngày bắt đầu (YYYY-MM-DD hoặc ISO string)",
+  })
+  @IsOptional()
+  @IsDateString({}, { message: "phải là ngày hợp lệ (YYYY-MM-DD)" })
+  start_date?: string;
+
+  @ApiPropertyOptional({
+    example: "2026-07-31",
+    description: "Ngày kết thúc (YYYY-MM-DD hoặc ISO string)",
+  })
+  @IsOptional()
+  @IsDateString({}, { message: "phải là ngày hợp lệ (YYYY-MM-DD)" })
+  end_date?: string;
 }
+

@@ -24,6 +24,7 @@ import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
 import { ProductBranchScopeDto } from "./dto/product-branch-scope.dto";
+import { QueryProductAlertsDto, QueryExpiringSoonDto } from "./dto/query-product-alerts.dto";
 import {
   PaginatedProductResponseDto,
   ProductAlertsResponseDto,
@@ -84,6 +85,36 @@ export class ProductsController {
     @Req() req: Request,
   ) {
     return this.productsService.findByBarcode(code, req.user!, query.branch_id);
+  }
+
+  @Get("low-stock")
+  @ApiOperation({
+    summary:
+      "Danh sách sản phẩm dưới ngưỡng tối thiểu (tồn thấp). Luôn query trực tiếp DB, không dùng cache.",
+  })
+  @ApiResponse({ status: 200, type: PaginatedProductResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: "branch_id bắt buộc khi tài khoản không gắn chi nhánh",
+    type: ApiErrorResponse,
+  })
+  getLowStock(@Query() query: QueryProductAlertsDto, @Req() req: Request) {
+    return this.productsService.findLowStockPaginated(query, req.user!);
+  }
+
+  @Get("expiring-soon")
+  @ApiOperation({
+    summary:
+      "Danh sách sản phẩm sắp hết hạn. Luôn query trực tiếp DB, không dùng cache.",
+  })
+  @ApiResponse({ status: 200, type: PaginatedProductResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: "branch_id bắt buộc khi tài khoản không gắn chi nhánh",
+    type: ApiErrorResponse,
+  })
+  getExpiringSoon(@Query() query: QueryExpiringSoonDto, @Req() req: Request) {
+    return this.productsService.findExpiringSoonPaginated(query, req.user!);
   }
 
   @Get(":id")
