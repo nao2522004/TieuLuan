@@ -5,6 +5,7 @@ interface ReceiptPrintViewProps {
   branchName?: string;
   branchAddress?: string;
   branchPhone?: string;
+  discountedItemsCount?: number;
 }
 
 const methodLabel: Record<string, string> = {
@@ -15,20 +16,48 @@ const methodLabel: Record<string, string> = {
 
 function Barcode({ value, label }: { value: string; label: string }) {
   const code39: Record<string, string> = {
-    '0': '000110100', '1': '100100001', '2': '001100001', '3': '101100000',
-    '4': '000110001', '5': '100110000', '6': '001110000', '7': '000100101',
-    '8': '100100100', '9': '001100100', 'A': '100001001', 'B': '001001001',
-    'C': '101001000', 'D': '000011001', 'E': '100011000', 'F': '001011000',
-    'G': '000001101', 'H': '100001100', 'I': '001001100', 'J': '000011100',
-    'K': '100000011', 'L': '001000011', 'M': '101000010', 'N': '000010011',
-    'O': '100010010', 'P': '001010010', 'Q': '000000111', 'R': '100000110',
-    'S': '001000110', 'T': '000010110', 'U': '110000001', 'V': '011000001',
-    'W': '111000000', 'X': '010010001', 'Y': '110010000', 'Z': '011010000',
-    '-': '000101010', '*': '001101000'
+    "0": "000110100",
+    "1": "100100001",
+    "2": "001100001",
+    "3": "101100000",
+    "4": "000110001",
+    "5": "100110000",
+    "6": "001110000",
+    "7": "000100101",
+    "8": "100100100",
+    "9": "001100100",
+    A: "100001001",
+    B: "001001001",
+    C: "101001000",
+    D: "000011001",
+    E: "100011000",
+    F: "001011000",
+    G: "000001101",
+    H: "100001100",
+    I: "001001100",
+    J: "000011100",
+    K: "100000011",
+    L: "001000011",
+    M: "101000010",
+    N: "000010011",
+    O: "100010010",
+    P: "001010010",
+    Q: "000000111",
+    R: "100000110",
+    S: "001000110",
+    T: "000010110",
+    U: "110000001",
+    V: "011000001",
+    W: "111000000",
+    X: "010010001",
+    Y: "110010000",
+    Z: "011010000",
+    "-": "000101010",
+    "*": "001101000",
   };
 
   const str = `*${value.toUpperCase()}*`;
-  const result: { type: 'bar' | 'space'; width: number }[] = [];
+  const result: { type: "bar" | "space"; width: number }[] = [];
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i];
@@ -36,11 +65,11 @@ function Barcode({ value, label }: { value: string; label: string }) {
     if (!pattern) continue;
 
     for (let j = 0; j < 9; j++) {
-      const type = j % 2 === 0 ? 'bar' : 'space';
-      const width = pattern[j] === '1' ? 3 : 1;
+      const type = j % 2 === 0 ? "bar" : "space";
+      const width = pattern[j] === "1" ? 3 : 1;
       result.push({ type, width });
     }
-    result.push({ type: 'space', width: 1 });
+    result.push({ type: "space", width: 1 });
   }
 
   const unitWidth = 1.0;
@@ -51,19 +80,47 @@ function Barcode({ value, label }: { value: string; label: string }) {
   let currentX = 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "6px 0" }}>
-      <svg width={svgWidth} height={height} viewBox={`0 0 ${svgWidth} ${height}`}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        margin: "6px 0",
+      }}
+    >
+      <svg
+        width={svgWidth}
+        height={height}
+        viewBox={`0 0 ${svgWidth} ${height}`}
+      >
         {result.map((item, idx) => {
           const w = item.width * unitWidth;
           const x = currentX;
           currentX += w;
-          if (item.type === 'bar') {
-            return <rect key={idx} x={x} y={0} width={w} height={height} fill="#000" />;
+          if (item.type === "bar") {
+            return (
+              <rect
+                key={idx}
+                x={x}
+                y={0}
+                width={w}
+                height={height}
+                fill="#000"
+              />
+            );
           }
           return null;
         })}
       </svg>
-      <span style={{ fontSize: "0.7rem", fontFamily: "monospace", letterSpacing: "1px", marginTop: "2px", fontWeight: "bold" }}>
+      <span
+        style={{
+          fontSize: "0.7rem",
+          fontFamily: "monospace",
+          letterSpacing: "1px",
+          marginTop: "2px",
+          fontWeight: "bold",
+        }}
+      >
         {label}
       </span>
     </div>
@@ -75,6 +132,7 @@ export function ReceiptPrintView({
   branchName,
   branchAddress,
   branchPhone,
+  discountedItemsCount,
 }: ReceiptPrintViewProps) {
   return (
     <div
@@ -107,7 +165,12 @@ export function ReceiptPrintView({
           const branchStr = String(order.branch_id).padStart(3, "0");
           const orderStr = String(order.id).padStart(6, "0");
           const codeVal = `400${dateStr}${branchStr}${orderStr}`;
-          return <Barcode value={codeVal} label={`(400) ${dateStr}${branchStr}${orderStr}`} />;
+          return (
+            <Barcode
+              value={codeVal}
+              label={`(400) ${dateStr}${branchStr}${orderStr}`}
+            />
+          );
         })()}
       </div>
 
@@ -120,6 +183,11 @@ export function ReceiptPrintView({
           Thanh toán:{" "}
           {methodLabel[order.payment_method] ?? order.payment_method}
         </div>
+        {!!discountedItemsCount && discountedItemsCount > 0 && (
+          <div style={{ color: "#c0392b", fontWeight: 700 }}>
+            🏷️ Đã áp giảm giá cận hạn cho {discountedItemsCount} sản phẩm
+          </div>
+        )}
       </div>
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
@@ -135,23 +203,78 @@ export function ReceiptPrintView({
           <tr style={{ borderBottom: "1px solid #000" }}>
             <th style={{ textAlign: "left" }}>SP</th>
             <th style={{ textAlign: "center" }}>SL</th>
+            <th style={{ textAlign: "right" }}>Đơn giá</th>
             <th style={{ textAlign: "right" }}>T.Tiền</th>
           </tr>
         </thead>
         <tbody>
-          {order.items.map((item) => (
-            <tr key={item.id}>
-              <td>{item.product_name ?? `SP #${item.product_id}`}</td>
-              <td style={{ textAlign: "center" }}>{item.quantity}</td>
-              <td style={{ textAlign: "right" }}>
-                {(item.unit_price * item.quantity).toLocaleString("vi-VN")}
-              </td>
-            </tr>
-          ))}
+          {order.items.map((item) => {
+            const hasDiscount =
+              !!item.original_unit_price && (item.discount_percent ?? 0) > 0;
+            return (
+              <tr key={item.id}>
+                <td>
+                  {item.product_name ?? `SP #${item.product_id}`}
+                  {hasDiscount && (
+                    <div style={{ fontSize: "0.72rem", color: "#c0392b" }}>
+                      Giảm {item.discount_percent}% cận hạn/sự kiện (−{" "}
+                      {(
+                        (item.original_unit_price! - item.unit_price) *
+                        item.quantity
+                      ).toLocaleString("vi-VN")}{" "}
+                      đ)
+                    </div>
+                  )}
+                </td>
+                <td style={{ textAlign: "center" }}>{item.quantity}</td>
+                <td style={{ textAlign: "right" }}>
+                  {hasDiscount ? (
+                    <>
+                      <div
+                        style={{
+                          textDecoration: "line-through",
+                          color: "#777",
+                          fontSize: "0.72rem",
+                        }}
+                      >
+                        {item.original_unit_price!.toLocaleString("vi-VN")}
+                      </div>
+                      <div>{item.unit_price.toLocaleString("vi-VN")}</div>
+                    </>
+                  ) : (
+                    item.unit_price.toLocaleString("vi-VN")
+                  )}
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  {(item.unit_price * item.quantity).toLocaleString("vi-VN")}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
+
+      {(() => {
+        const totalExpiryDiscount = order.items.reduce((sum, it) => {
+          if (!it.original_unit_price) return sum;
+          return sum + (it.original_unit_price - it.unit_price) * it.quantity;
+        }, 0);
+        return totalExpiryDiscount > 0 ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "0.85rem",
+              color: "#c0392b",
+            }}
+          >
+            <span>Giảm giá cận hạn/sự kiện:</span>
+            <span>− {totalExpiryDiscount.toLocaleString("vi-VN")} đ</span>
+          </div>
+        ) : null;
+      })()}
 
       {order.discount_amount > 0 && (
         <div
@@ -161,10 +284,18 @@ export function ReceiptPrintView({
             fontSize: "0.85rem",
           }}
         >
-          <span>Giảm giá:</span>
-          <span>- {order.discount_amount.toLocaleString("vi-VN")} đ</span>
+          <span>
+            Giảm giá mã KM
+            {order.promotion_code ? ` (${order.promotion_code})` : ""}
+            {order.promotion_type === "percent" && order.promotion_value != null
+              ? ` −${order.promotion_value}%`
+              : ""}
+            :
+          </span>
+          <span>− {order.discount_amount.toLocaleString("vi-VN")} đ</span>
         </div>
       )}
+
       <div
         style={{
           display: "flex",

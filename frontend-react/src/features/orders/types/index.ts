@@ -4,6 +4,8 @@ export interface OrderItem {
   product_name: string | null;
   quantity: number;
   unit_price: number;
+  original_unit_price?: number | null;
+  discount_percent?: number;
 }
 
 export interface Order {
@@ -24,6 +26,8 @@ export interface Order {
   zalopay_app_trans_id: string | null;
   zalopay_zp_trans_id: string | null;
   promotion_code: string | null;
+  promotion_type?: "percent" | "fixed" | null;
+  promotion_value?: number | null;
 }
 
 export interface CreateOrderItemPayload {

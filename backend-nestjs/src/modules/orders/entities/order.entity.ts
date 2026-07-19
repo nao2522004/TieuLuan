@@ -81,6 +81,23 @@ export class Order {
   })
   discountAmount: number;
 
+  @Column({
+    name: "promotion_type",
+    type: "varchar",
+    length: 10,
+    nullable: true,
+  })
+  promotionType: "percent" | "fixed" | null;
+
+  @Column({
+    name: "promotion_value",
+    type: "numeric",
+    precision: 12,
+    scale: 2,
+    nullable: true,
+  })
+  promotionValue: number | null;
+
   @Column({ name: "total_amount", type: "numeric", precision: 12, scale: 2 })
   totalAmount: number;
 

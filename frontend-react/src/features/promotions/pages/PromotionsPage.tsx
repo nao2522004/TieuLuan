@@ -224,8 +224,14 @@ export default function PromotionsPage({
                 : "var(--danger)",
             }}
           >
+            {validateMutation.isError && (
+              <p style={{ marginTop: 12, color: "var(--danger)" }}>
+                ❌ Không kiểm tra được mã (lỗi kết nối hoặc phiên đăng nhập hết
+                hạn).
+              </p>
+            )}
             {validateMutation.data.valid
-              ? `✅ Hợp lệ — giảm ${fmtMoney(validateMutation.data.discount_amount)}`
+              ? `Hợp lệ — giảm ${fmtMoney(validateMutation.data.discount_amount)}`
               : `❌ ${validateMutation.data.reason}`}
           </p>
         )}

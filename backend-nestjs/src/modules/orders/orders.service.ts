@@ -141,7 +141,7 @@ export class OrdersService {
         }
 
         const subtotal = lineItems.reduce(
-          (sum, li) => sum + li.unitPrice * li.quantity,
+          (s, li) => s + li.unitPrice * li.quantity,
           0,
         );
 
@@ -155,6 +155,8 @@ export class OrdersService {
 
         let discountAmount = dto.discount_amount ?? 0;
         let appliedPromotionCode: string | null = null;
+        let appliedPromotionType: "percent" | "fixed" | null = null;
+        let appliedPromotionValue: number | null = null;
 
         if (dto.promotion_code) {
           const result =
@@ -171,6 +173,8 @@ export class OrdersService {
           }
           discountAmount = result.discount_amount;
           appliedPromotionCode = dto.promotion_code.trim().toUpperCase();
+          appliedPromotionType = result.promotion_type ?? null;
+          appliedPromotionValue = result.promotion_value ?? null;
         }
 
         const totalAmount = subtotal - discountAmount;
@@ -186,6 +190,8 @@ export class OrdersService {
           discountAmount,
           totalAmount,
           promotionCode: appliedPromotionCode,
+          promotionType: appliedPromotionType,
+          promotionValue: appliedPromotionValue,
         });
         const savedOrder = await orderRepo.save(orderEntity);
 
@@ -602,6 +608,9 @@ export class OrdersService {
       zalopay_app_trans_id: order.zalopayAppTransId ?? null,
       zalopay_zp_trans_id: order.zalopayZpTransId ?? null,
       promotion_code: order.promotionCode ?? null,
+      promotion_type: order.promotionType ?? null,
+      promotion_value:
+        order.promotionValue != null ? Number(order.promotionValue) : null,
     };
   }
 }

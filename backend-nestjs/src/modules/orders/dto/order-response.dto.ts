@@ -95,6 +95,21 @@ export class OrderDataDto {
       "Mã khuyến mãi đã áp dụng cho đơn hàng này (nếu có), lưu lại để đối soát báo cáo.",
   })
   promotion_code?: string | null;
+
+  @ApiPropertyOptional({
+    example: "percent",
+    enum: ["percent", "fixed"],
+    nullable: true,
+  })
+  promotion_type?: "percent" | "fixed" | null;
+
+  @ApiPropertyOptional({
+    example: 20,
+    nullable: true,
+    description:
+      "Giá trị mã KM snapshot (% nếu type=percent, VND nếu type=fixed)",
+  })
+  promotion_value?: number | null;
 }
 
 export class OrderResponseDto {

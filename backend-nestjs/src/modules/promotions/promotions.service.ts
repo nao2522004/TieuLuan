@@ -29,7 +29,11 @@ export class PromotionsService {
       );
     }
 
-    if (dto.ends_at && dto.starts_at && new Date(dto.ends_at) <= new Date(dto.starts_at)) {
+    if (
+      dto.ends_at &&
+      dto.starts_at &&
+      new Date(dto.ends_at) <= new Date(dto.starts_at)
+    ) {
       throw new BusinessException(
         "PROMOTION_INVALID_DATES",
         400,
@@ -120,7 +124,11 @@ export class PromotionsService {
       );
     }
 
-    if (promotion.endsAt && promotion.startsAt && promotion.endsAt <= promotion.startsAt) {
+    if (
+      promotion.endsAt &&
+      promotion.startsAt &&
+      promotion.endsAt <= promotion.startsAt
+    ) {
       throw new BusinessException(
         "PROMOTION_INVALID_DATES",
         400,
@@ -145,7 +153,13 @@ export class PromotionsService {
   async validateAndCalculateDiscount(
     code: string,
     orderAmount: number,
-  ): Promise<{ valid: boolean; discount_amount: number; reason: string | null }> {
+  ): Promise<{
+    valid: boolean;
+    discount_amount: number;
+    reason: string | null;
+    promotion_type?: "percent" | "fixed";
+    promotion_value?: number;
+  }> {
     const cleanCode = code.trim().toUpperCase();
     const promotion = await this.promotionsRepository.findOne({
       where: {
@@ -155,23 +169,41 @@ export class PromotionsService {
     });
 
     if (!promotion) {
-      return { valid: false, discount_amount: 0, reason: "Mã khuyến mãi không tồn tại." };
+      return {
+        valid: false,
+        discount_amount: 0,
+        reason: "Mã khuyến mãi không tồn tại.",
+      };
     }
 
     if (!promotion.isActive) {
-      return { valid: false, discount_amount: 0, reason: "Chương trình khuyến mãi đã bị vô hiệu hóa." };
+      return {
+        valid: false,
+        discount_amount: 0,
+        reason: "Chương trình khuyến mãi đã bị vô hiệu hóa.",
+      };
     }
 
     const now = new Date();
     if (now < promotion.startsAt) {
-      return { valid: false, discount_amount: 0, reason: "Chương trình khuyến mãi chưa bắt đầu." };
+      return {
+        valid: false,
+        discount_amount: 0,
+        reason: "Chương trình khuyến mãi chưa bắt đầu.",
+      };
     }
 
     if (promotion.endsAt && now > promotion.endsAt) {
-      return { valid: false, discount_amount: 0, reason: "Chương trình khuyến mãi đã hết hạn." };
+      return {
+        valid: false,
+        discount_amount: 0,
+        reason: "Chương trình khuyến mãi đã hết hạn.",
+      };
     }
 
-    const minAmount = promotion.minOrderAmount ? Number(promotion.minOrderAmount) : 0;
+    const minAmount = promotion.minOrderAmount
+      ? Number(promotion.minOrderAmount)
+      : 0;
     if (orderAmount < minAmount) {
       return {
         valid: false,
@@ -200,10 +232,12 @@ export class PromotionsService {
       valid: true,
       discount_amount: discount,
       reason: null,
+      promotion_type: promotion.type,
+      promotion_value: Number(promotion.value),
     };
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  //  Helpers
 
   private async findActiveOrThrow(id: number): Promise<Promotion> {
     const promotion = await this.promotionsRepository.findOne({
@@ -219,7 +253,10 @@ export class PromotionsService {
     return promotion;
   }
 
-  private async assertCodeNotTaken(code: string, excludeId?: number): Promise<void> {
+  private async assertCodeNotTaken(
+    code: string,
+    excludeId?: number,
+  ): Promise<void> {
     const qb = this.promotionsRepository
       .createQueryBuilder("p")
       .where("p.code = :code", { code })
@@ -246,8 +283,12 @@ export class PromotionsService {
       name: promotion.name,
       type: promotion.type,
       value: Number(promotion.value),
-      min_order_amount: promotion.minOrderAmount ? Number(promotion.minOrderAmount) : null,
-      max_discount_amount: promotion.maxDiscountAmount ? Number(promotion.maxDiscountAmount) : null,
+      min_order_amount: promotion.minOrderAmount
+        ? Number(promotion.minOrderAmount)
+        : null,
+      max_discount_amount: promotion.maxDiscountAmount
+        ? Number(promotion.maxDiscountAmount)
+        : null,
       is_active: promotion.isActive,
       starts_at: promotion.startsAt,
       ends_at: promotion.endsAt,

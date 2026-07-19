@@ -11,6 +11,7 @@ import { ordersApi } from "../api/orders.api";
 import { ReceiptPrintView } from "../components/ReceiptPrintView";
 import { useBranchDetailQuery } from "@/features/branches/api/branches.queries";
 import { useValidatePromotionMutation } from "@/features/promotions";
+import { ApiError } from "@/lib/api-client";
 
 export default function POSPage() {
   const { activeShift } = useShiftStore();
@@ -30,6 +31,7 @@ export default function POSPage() {
   const [previewDiscount, setPreviewDiscount] = useState(0);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const validatePromoMutation = useValidatePromotionMutation();
+  const [discountedItemsCount, setDiscountedItemsCount] = useState(0);
 
   const { data: branchDetail } = useBranchDetailQuery(
     completedOrder?.branch_id,
@@ -136,6 +138,12 @@ export default function POSPage() {
         quantity: i.quantity,
       })),
     });
+
+    const countBeforeReset = cart.filter(
+      (i) => (i.discount_percent ?? 0) > 0,
+    ).length;
+
+    setDiscountedItemsCount(countBeforeReset);
     setCompletedOrder(order);
     setCart([]);
     setDiscount(0);
@@ -157,8 +165,14 @@ export default function POSPage() {
         setPreviewDiscount(0);
         setPreviewError(result.reason);
       }
-    } catch {
+    } catch (err) {
+      console.error("[handleCheckPromotionCode] lỗi khi kiểm tra mã:", err);
       setPreviewDiscount(0);
+      setPreviewError(
+        err instanceof ApiError
+          ? err.message
+          : "Không kiểm tra được mã khuyến mãi. Vui lòng thử lại.",
+      );
     }
   };
 
@@ -404,6 +418,21 @@ export default function POSPage() {
               </div>
             )}
           </div>
+
+          {cart.some((i) => (i.discount_percent ?? 0) > 0) && (
+            <div
+              style={{
+                marginBottom: 8,
+                fontSize: "0.8rem",
+                color: "var(--warning)",
+              }}
+            >
+              🏷️ Đơn có{" "}
+              {cart.filter((i) => (i.discount_percent ?? 0) > 0).length} sản
+              phẩm đang áp giảm giá cận hạn/sự kiện (đã tính trong đơn giá bên
+              dưới).
+            </div>
+          )}
         </div>
 
         {/* Right: Payment Panel */}
@@ -734,10 +763,27 @@ export default function POSPage() {
                 <p>
                   <strong>Mã đơn hàng:</strong> #{completedOrder.id}
                 </p>
-                <p>
-                  <strong>Tổng tiền:</strong>{" "}
-                  {completedOrder.total_amount.toLocaleString("vi-VN")} đ
-                </p>
+                {discountedItemsCount > 0 && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--warning)" }}>
+                    🏷️ Đơn có {discountedItemsCount} sản phẩm đã áp giảm giá cận
+                    hạn/sự kiện.
+                  </p>
+                )}
+                {completedOrder.discount_amount > 0 && (
+                  <div className="flex-row-between">
+                    <span>Đã giảm giá:</span>
+                    <span>
+                      − {completedOrder.discount_amount.toLocaleString("vi-VN")}{" "}
+                      đ
+                    </span>
+                  </div>
+                )}
+                <div className="flex-row-between">
+                  <span style={{ fontWeight: 700 }}>Tổng tiền:</span>
+                  <span style={{ fontWeight: 700 }}>
+                    {completedOrder.total_amount.toLocaleString("vi-VN")} đ
+                  </span>
+                </div>
                 <p>
                   <strong>Phương thức:</strong>{" "}
                   {completedOrder.payment_method === "cash"
@@ -859,6 +905,7 @@ export default function POSPage() {
                 branchName={branchDetail?.name}
                 branchAddress={branchDetail?.address}
                 branchPhone={branchDetail?.phone}
+                discountedItemsCount={discountedItemsCount}
               />
             )}
           </div>

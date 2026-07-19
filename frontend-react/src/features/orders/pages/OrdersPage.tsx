@@ -397,6 +397,9 @@ function OrderDetailModal({
                   branchName={branchDetail?.name}
                   branchAddress={branchDetail?.address}
                   branchPhone={branchDetail?.phone}
+                  discountedItemsCount={
+                    order.items.filter((it) => !!it.original_unit_price).length
+                  }
                 />
               )}
             </>

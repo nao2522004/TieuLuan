@@ -74,5 +74,6 @@ export function useValidatePromotionMutation() {
   >({
     mutationFn: ({ code, amount }) =>
       promotionsApi.validatePromotion(code, amount),
+    onError: (err) => console.error("[validatePromotion] error:", err),
   });
 }
