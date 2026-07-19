@@ -10,6 +10,7 @@ import { notify } from "@/lib/notify";
 import { ordersApi } from "../api/orders.api";
 import { ReceiptPrintView } from "../components/ReceiptPrintView";
 import { useBranchDetailQuery } from "@/features/branches/api/branches.queries";
+import { useValidatePromotionMutation } from "@/features/promotions";
 
 export default function POSPage() {
   const { activeShift } = useShiftStore();
@@ -26,6 +27,9 @@ export default function POSPage() {
   >("cash");
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const [previewDiscount, setPreviewDiscount] = useState(0);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const validatePromoMutation = useValidatePromotionMutation();
 
   const { data: branchDetail } = useBranchDetailQuery(
     completedOrder?.branch_id,
@@ -72,6 +76,8 @@ export default function POSPage() {
       ];
     });
     setFetchBarcode("");
+    setPreviewDiscount(0);
+    setPreviewError(null);
   }, [scannedProduct, fetchBarcode]);
 
   useEffect(() => {
@@ -101,8 +107,14 @@ export default function POSPage() {
     }
   };
 
+  const effectiveDiscount =
+    promotionMode === "manual"
+      ? discount
+      : promotionMode === "code"
+        ? previewDiscount
+        : 0;
   const subtotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
-  const total = Math.max(0, subtotal - discount);
+  const total = Math.max(0, subtotal - effectiveDiscount);
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -130,6 +142,30 @@ export default function POSPage() {
     setPromotionCode("");
     setPromotionMode("none");
   };
+
+  const handleCheckPromotionCode = async () => {
+    if (!promotionCode.trim()) return;
+    setPreviewError(null);
+    try {
+      const result = await validatePromoMutation.mutateAsync({
+        code: promotionCode.trim(),
+        amount: subtotal,
+      });
+      if (result.valid) {
+        setPreviewDiscount(result.discount_amount);
+      } else {
+        setPreviewDiscount(0);
+        setPreviewError(result.reason);
+      }
+    } catch {
+      setPreviewDiscount(0);
+    }
+  };
+
+  useEffect(() => {
+    setPreviewDiscount(0);
+    setPreviewError(null);
+  }, [promotionMode, subtotal]);
 
   const handleConfirmPayment = async (orderId: number) => {
     await confirmPaymentMutation.mutateAsync(orderId);
@@ -458,16 +494,49 @@ export default function POSPage() {
                   )}
 
                   {promotionMode === "code" && (
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="VD: TET2026"
-                      value={promotionCode}
-                      onChange={(e) =>
-                        setPromotionCode(e.target.value.toUpperCase())
-                      }
-                      style={{ textTransform: "uppercase" }}
-                    />
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="VD: TET2026"
+                        value={promotionCode}
+                        onChange={(e) => {
+                          setPromotionCode(e.target.value.toUpperCase());
+                          setPreviewDiscount(0);
+                          setPreviewError(null);
+                        }}
+                        style={{ textTransform: "uppercase" }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ flexShrink: 0 }}
+                        onClick={handleCheckPromotionCode}
+                        disabled={
+                          validatePromoMutation.isPending ||
+                          !promotionCode.trim()
+                        }
+                      >
+                        {validatePromoMutation.isPending ? "..." : "Kiểm tra"}
+                      </button>
+                    </div>
+                  )}
+                  {promotionMode === "code" && previewDiscount > 0 && (
+                    <p
+                      style={{
+                        marginTop: 6,
+                        fontSize: "0.8rem",
+                        color: "var(--success)",
+                      }}
+                    >
+                      Áp dụng được — giảm{" "}
+                      {previewDiscount.toLocaleString("vi-VN")} đ
+                    </p>
+                  )}
+                  {promotionMode === "code" && previewError && (
+                    <p className="form-error" style={{ marginTop: 6 }}>
+                      ❌ {previewError}
+                    </p>
                   )}
                 </div>
                 <input

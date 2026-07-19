@@ -23,7 +23,7 @@ export class ExpiryPricingService {
   private async getActiveRules(): Promise<ExpiryDiscountRule[]> {
     return this.rulesRepository.find({
       where: { isActive: true, deletedAt: IsNull() },
-      order: { daysBeforeExpiry: "ASC" },
+      order: { id: "ASC" },
     });
   }
 
@@ -31,23 +31,29 @@ export class ExpiryPricingService {
     salePrice: number,
     expiryDate: string | null,
   ): Promise<EffectivePriceResult> {
-    if (!expiryDate) {
-      return {
-        effective_price: salePrice,
-        discount_percent: 0,
-        is_expiry_discount_applied: false,
-      };
+    const rules = await this.getActiveRules();
+    const matching: ExpiryDiscountRule[] = [];
+
+    matching.push(...rules.filter((r) => r.scope === "all_products"));
+
+    if (expiryDate) {
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const expiry = new Date(expiryDate + "T00:00:00.000Z");
+      const daysLeft = Math.floor(
+        (expiry.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+      );
+
+      matching.push(
+        ...rules.filter(
+          (r) =>
+            r.scope === "expiry" &&
+            r.daysBeforeExpiry != null &&
+            daysLeft <= r.daysBeforeExpiry,
+        ),
+      );
     }
 
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const expiry = new Date(expiryDate + "T00:00:00.000Z");
-    const daysLeft = Math.floor(
-      (expiry.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
-    );
-
-    const rules = await this.getActiveRules();
-    const matching = rules.filter((r) => daysLeft <= r.daysBeforeExpiry);
     if (matching.length === 0) {
       return {
         effective_price: salePrice,
@@ -73,7 +79,7 @@ export class ExpiryPricingService {
   async findAll(): Promise<ExpiryDiscountRuleDto[]> {
     const rows = await this.rulesRepository.find({
       where: { deletedAt: IsNull() },
-      order: { daysBeforeExpiry: "ASC" },
+      order: { id: "ASC" },
     });
     return rows.map((r) => this.toDto(r));
   }
@@ -81,8 +87,11 @@ export class ExpiryPricingService {
   async create(
     dto: CreateExpiryDiscountRuleDto,
   ): Promise<ExpiryDiscountRuleDto> {
+    const scope = dto.scope ?? "expiry";
     const entity = this.rulesRepository.create({
-      daysBeforeExpiry: dto.days_before_expiry,
+      scope,
+      daysBeforeExpiry:
+        scope === "all_products" ? null : (dto.days_before_expiry ?? null),
       discountPercent: dto.discount_percent,
       isActive: dto.is_active ?? true,
     });
@@ -95,11 +104,21 @@ export class ExpiryPricingService {
     dto: UpdateExpiryDiscountRuleDto,
   ): Promise<ExpiryDiscountRuleDto> {
     const rule = await this.findActiveOrThrow(id);
-    if (dto.days_before_expiry !== undefined)
-      rule.daysBeforeExpiry = dto.days_before_expiry;
+
+    if (dto.scope !== undefined) rule.scope = dto.scope;
+    const effectiveScope = dto.scope ?? rule.scope;
+
+    if (dto.days_before_expiry !== undefined) {
+      rule.daysBeforeExpiry =
+        effectiveScope === "all_products" ? null : dto.days_before_expiry;
+    } else if (effectiveScope === "all_products") {
+      rule.daysBeforeExpiry = null;
+    }
+
     if (dto.discount_percent !== undefined)
       rule.discountPercent = dto.discount_percent;
     if (dto.is_active !== undefined) rule.isActive = dto.is_active;
+
     const saved = await this.rulesRepository.save(rule);
     return this.toDto(saved);
   }
@@ -108,7 +127,7 @@ export class ExpiryPricingService {
     const rule = await this.findActiveOrThrow(id);
     rule.deletedAt = new Date();
     await this.rulesRepository.save(rule);
-    return { message: "Xóa quy tắc giảm giá cận hạn thành công." };
+    return { message: "Xóa quy tắc giảm giá thành công." };
   }
 
   private async findActiveOrThrow(id: number): Promise<ExpiryDiscountRule> {
@@ -128,6 +147,7 @@ export class ExpiryPricingService {
   private toDto(rule: ExpiryDiscountRule): ExpiryDiscountRuleDto {
     return {
       id: rule.id,
+      scope: rule.scope,
       days_before_expiry: rule.daysBeforeExpiry,
       discount_percent: Number(rule.discountPercent),
       is_active: rule.isActive,

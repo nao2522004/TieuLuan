@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
+export type ExpiryDiscountRuleScope = "expiry" | "all_products";
+
 @Entity("expiry_discount_rules")
 export class ExpiryDiscountRule {
   @PrimaryColumn({
@@ -15,8 +17,12 @@ export class ExpiryDiscountRule {
   })
   id: number;
 
-  @Column({ name: "days_before_expiry", type: "integer" })
-  daysBeforeExpiry: number;
+  @Column({ type: "varchar", length: 20, default: "expiry" })
+  scope: ExpiryDiscountRuleScope;
+
+  // Nullable: chỉ có ý nghĩa khi scope = 'expiry'
+  @Column({ name: "days_before_expiry", type: "integer", nullable: true })
+  daysBeforeExpiry: number | null;
 
   @Column({ name: "discount_percent", type: "numeric", precision: 5, scale: 2 })
   discountPercent: number;

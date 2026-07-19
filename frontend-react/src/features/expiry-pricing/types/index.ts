@@ -1,6 +1,9 @@
+export type ExpiryDiscountRuleScope = "expiry" | "all_products";
+
 export interface ExpiryDiscountRule {
   id: number;
-  days_before_expiry: number;
+  scope: ExpiryDiscountRuleScope;
+  days_before_expiry: number | null;
   discount_percent: number;
   is_active: boolean;
   created_at: string;
@@ -8,7 +11,8 @@ export interface ExpiryDiscountRule {
 }
 
 export interface CreateExpiryDiscountRulePayload {
-  days_before_expiry: number;
+  scope?: ExpiryDiscountRuleScope;
+  days_before_expiry?: number;
   discount_percent: number;
   is_active?: boolean;
 }

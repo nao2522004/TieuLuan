@@ -29,9 +29,10 @@ export default function ExpiryPricingPage({
     ExpiryDiscountRule | undefined
   >(undefined);
 
-  const sortedRules = [...rules].sort(
-    (a, b) => a.days_before_expiry - b.days_before_expiry,
-  );
+  const sortedRules = [...rules].sort((a, b) => {
+    if (a.scope !== b.scope) return a.scope === "all_products" ? -1 : 1;
+    return (a.days_before_expiry ?? 0) - (b.days_before_expiry ?? 0);
+  });
 
   const handleOpenCreate = () => {
     setSelectedRule(undefined);
@@ -171,9 +172,11 @@ export default function ExpiryPricingPage({
                   <tr key={rule.id}>
                     <td>{rule.id}</td>
                     <td>
-                      {rule.days_before_expiry === 0
-                        ? "Đã hết hạn sử dụng"
-                        : `Còn <= ${rule.days_before_expiry} ngày tới hạn`}
+                      {rule.scope === "all_products"
+                        ? "🎉 Toàn bộ sản phẩm (sự kiện giảm giá)"
+                        : rule.days_before_expiry === 0
+                          ? "Đã hết hạn sử dụng"
+                          : `Còn <= ${rule.days_before_expiry} ngày tới hạn`}
                     </td>
                     <td>
                       <span style={{ fontWeight: 700, color: "var(--danger)" }}>
