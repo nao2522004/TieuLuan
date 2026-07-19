@@ -24,6 +24,8 @@ interface LineItem {
   productName: string;
   quantity: number;
   unitPrice: number;
+  originalUnitPrice: number | null;
+  expiryDiscountPercent: number | null;
 }
 
 interface QrResult {
@@ -137,6 +139,12 @@ export class OrdersService {
             productName: product.name,
             quantity: item.quantity,
             unitPrice: pricing.effective_price,
+            originalUnitPrice: pricing.is_expiry_discount_applied
+              ? Number(product.salePrice)
+              : null,
+            expiryDiscountPercent: pricing.is_expiry_discount_applied
+              ? pricing.discount_percent
+              : null,
           });
         }
 
@@ -203,6 +211,8 @@ export class OrdersService {
             productName: li.productName,
             quantity: li.quantity,
             unitPrice: li.unitPrice,
+            originalUnitPrice: li.originalUnitPrice,
+            expiryDiscountPercent: li.expiryDiscountPercent,
           }),
         );
         const savedItems = await itemRepo.save(itemEntities);
@@ -600,6 +610,12 @@ export class OrdersService {
         product_name: it.productName ?? null,
         quantity: it.quantity,
         unit_price: Number(it.unitPrice),
+        original_unit_price:
+          it.originalUnitPrice != null ? Number(it.originalUnitPrice) : null,
+        discount_percent:
+          it.expiryDiscountPercent != null
+            ? Number(it.expiryDiscountPercent)
+            : null,
       })),
       created_at: order.createdAt,
       updated_at: order.updatedAt,

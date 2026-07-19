@@ -183,119 +183,107 @@ export function ReceiptPrintView({
           Thanh toán:{" "}
           {methodLabel[order.payment_method] ?? order.payment_method}
         </div>
-        {!!discountedItemsCount && discountedItemsCount > 0 && (
-          <div style={{ color: "#c0392b", fontWeight: 700 }}>
-            🏷️ Đã áp giảm giá cận hạn cho {discountedItemsCount} sản phẩm
-          </div>
-        )}
       </div>
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
-      <table
-        style={{
-          width: "100%",
-          fontSize: "0.8rem",
-          borderCollapse: "collapse",
-        }}
-      >
-        <thead>
-          <tr style={{ borderBottom: "1px solid #000" }}>
-            <th style={{ textAlign: "left" }}>SP</th>
-            <th style={{ textAlign: "center" }}>SL</th>
-            <th style={{ textAlign: "right" }}>Đơn giá</th>
-            <th style={{ textAlign: "right" }}>T.Tiền</th>
-          </tr>
-        </thead>
-        <tbody>
-          {order.items.map((item) => {
-            const hasDiscount =
-              !!item.original_unit_price && (item.discount_percent ?? 0) > 0;
-            return (
-              <tr key={item.id}>
-                <td>
-                  {item.product_name ?? `SP #${item.product_id}`}
-                  {hasDiscount && (
-                    <div style={{ fontSize: "0.72rem", color: "#c0392b" }}>
-                      Giảm {item.discount_percent}% cận hạn/sự kiện (−{" "}
-                      {(
-                        (item.original_unit_price! - item.unit_price) *
-                        item.quantity
-                      ).toLocaleString("vi-VN")}{" "}
-                      đ)
-                    </div>
-                  )}
-                </td>
-                <td style={{ textAlign: "center" }}>{item.quantity}</td>
-                <td style={{ textAlign: "right" }}>
-                  {hasDiscount ? (
-                    <>
-                      <div
-                        style={{
-                          textDecoration: "line-through",
-                          color: "#777",
-                          fontSize: "0.72rem",
-                        }}
-                      >
-                        {item.original_unit_price!.toLocaleString("vi-VN")}
-                      </div>
-                      <div>{item.unit_price.toLocaleString("vi-VN")}</div>
-                    </>
-                  ) : (
-                    item.unit_price.toLocaleString("vi-VN")
-                  )}
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  {(item.unit_price * item.quantity).toLocaleString("vi-VN")}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
       {(() => {
-        const totalExpiryDiscount = order.items.reduce((sum, it) => {
+        const grossOriginal = order.items.reduce(
+          (sum, it) =>
+            sum + (it.original_unit_price ?? it.unit_price) * it.quantity,
+          0,
+        );
+        const expiryDiscountTotal = order.items.reduce((sum, it) => {
           if (!it.original_unit_price) return sum;
           return sum + (it.original_unit_price - it.unit_price) * it.quantity;
         }, 0);
-        return totalExpiryDiscount > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: "0.85rem",
-              color: "#c0392b",
-            }}
-          >
-            <span>Giảm giá cận hạn/sự kiện:</span>
-            <span>− {totalExpiryDiscount.toLocaleString("vi-VN")} đ</span>
+
+        const expiryDiscountPercentAvg =
+          grossOriginal > 0
+            ? Math.round((expiryDiscountTotal / grossOriginal) * 1000) / 10
+            : 0;
+
+        return (
+          <div style={{ fontSize: "0.85rem" }}>
+            {/* 1. Giá gốc */}
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Giá gốc:</span>
+              <span>{grossOriginal.toLocaleString("vi-VN")} đ</span>
+            </div>
+
+            {/* 2. Giảm giá cận hạn/sự kiện */}
+            {expiryDiscountTotal > 0 && (
+              <div style={{ marginTop: 4 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 8,
+                    color: "#000",
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    Giảm giá cận hạn/sự kiện:
+                  </span>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                    }}
+                  >
+                    − {expiryDiscountTotal.toLocaleString("vi-VN")} đ
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.72rem", color: "#000" }}>
+                  (Mức giảm: −{expiryDiscountPercentAvg}%)
+                </div>
+              </div>
+            )}
+
+            {/* 3. Giảm giá cả đơn (mã KM hoặc nhập tay) */}
+            {order.discount_amount > 0 && (
+              <div style={{ marginTop: 4 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    Giảm giá cả đơn
+                    {order.promotion_code ? ` (${order.promotion_code})` : ""}:
+                  </span>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                    }}
+                  >
+                    − {order.discount_amount.toLocaleString("vi-VN")} đ
+                  </span>
+                </div>
+                {order.promotion_type === "percent" &&
+                  order.promotion_value != null && (
+                    <div style={{ fontSize: "0.72rem", color: "#000" }}>
+                      (Mức giảm: −{order.promotion_value}%)
+                    </div>
+                  )}
+              </div>
+            )}
           </div>
-        ) : null;
+        );
       })()}
 
-      {order.discount_amount > 0 && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: "0.85rem",
-          }}
-        >
-          <span>
-            Giảm giá mã KM
-            {order.promotion_code ? ` (${order.promotion_code})` : ""}
-            {order.promotion_type === "percent" && order.promotion_value != null
-              ? ` −${order.promotion_value}%`
-              : ""}
-            :
-          </span>
-          <span>− {order.discount_amount.toLocaleString("vi-VN")} đ</span>
-        </div>
-      )}
+      <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
+      {/* 4. Giá cuối */}
       <div
         style={{
           display: "flex",

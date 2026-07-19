@@ -116,6 +116,11 @@ export default function POSPage() {
         ? previewDiscount
         : 0;
   const subtotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const grossOriginal = cart.reduce(
+    (s, i) => s + (i.original_price ?? i.unit_price) * i.quantity,
+    0,
+  );
+  const expiryDiscountTotal = Math.max(0, grossOriginal - subtotal);
   const total = Math.max(0, subtotal - effectiveDiscount);
 
   const handleCheckout = async () => {
@@ -449,140 +454,181 @@ export default function POSPage() {
                 border: "1px solid var(--border-color)",
               }}
             >
+              {/* Giá gốc */}
               <div className="flex-row-between" style={{ marginBottom: "8px" }}>
-                <span style={{ color: "var(--text-secondary)" }}>
-                  Tạm tính:
-                </span>
-                <span>{subtotal.toLocaleString("vi-VN")} đ</span>
+                <span style={{ color: "var(--text-secondary)" }}>Giá gốc:</span>
+                <span>{grossOriginal.toLocaleString("vi-VN")} đ</span>
               </div>
-              <div className="flex-row-between" style={{ marginBottom: "8px" }}>
-                <div style={{ marginBottom: "16px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "8px",
-                      fontSize: "0.9rem",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    Áp dụng giảm giá
-                  </label>
+
+              {/* Giảm giá cận hạn/sự kiện */}
+              {expiryDiscountTotal > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ color: "var(--danger)", fontSize: "0.9rem" }}>
+                    Giảm giá cận hạn/sự kiện:
+                  </div>
                   <div
                     style={{
-                      display: "flex",
-                      gap: "8px",
-                      marginBottom: "10px",
+                      textAlign: "right",
+                      color: "var(--danger)",
+                      fontWeight: 600,
                     }}
                   >
+                    − {expiryDiscountTotal.toLocaleString("vi-VN")} đ
+                  </div>
+                </div>
+              )}
+              {/* Chọn cách giảm giá cả đơn — nhập tay hoặc theo mã khuyến mãi */}
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontSize: "0.9rem",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Giảm giá cho cả đơn (chọn 1 trong 2 cách)
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "8px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={`btn ${promotionMode === "none" ? "btn-primary" : "btn-secondary"}`}
+                    style={{
+                      flex: "1 1 calc(33.33% - 6px)",
+                      minWidth: "90px",
+                      fontSize: "0.78rem",
+                      padding: "8px 6px",
+                    }}
+                    onClick={() => {
+                      setPromotionMode("none");
+                      setDiscount(0);
+                      setPromotionCode("");
+                    }}
+                  >
+                    Không giảm
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${promotionMode === "manual" ? "btn-primary" : "btn-secondary"}`}
+                    style={{
+                      flex: "1 1 calc(33.33% - 6px)",
+                      minWidth: "90px",
+                      fontSize: "0.78rem",
+                      padding: "8px 6px",
+                    }}
+                    onClick={() => {
+                      setPromotionMode("manual");
+                      setPromotionCode("");
+                    }}
+                  >
+                    Nhập tay
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${promotionMode === "code" ? "btn-primary" : "btn-secondary"}`}
+                    style={{
+                      flex: "1 1 100%",
+                      fontSize: "0.78rem",
+                      padding: "8px 6px",
+                    }}
+                    onClick={() => {
+                      setPromotionMode("code");
+                      setDiscount(0);
+                    }}
+                  >
+                    Mã khuyến mãi
+                  </button>
+                </div>
+
+                {promotionMode === "manual" && (
+                  <input
+                    type="number"
+                    className="form-control"
+                    placeholder="Số tiền giảm (VND)"
+                    value={discount}
+                    onChange={(e) =>
+                      setDiscount(Math.max(0, Number(e.target.value)))
+                    }
+                  />
+                )}
+
+                {promotionMode === "code" && (
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="VD: TET2026"
+                      value={promotionCode}
+                      onChange={(e) => {
+                        setPromotionCode(e.target.value.toUpperCase());
+                        setPreviewDiscount(0);
+                        setPreviewError(null);
+                      }}
+                      style={{ textTransform: "uppercase" }}
+                    />
                     <button
                       type="button"
-                      className={`btn ${promotionMode === "none" ? "btn-primary" : "btn-secondary"}`}
-                      style={{ flex: 1, fontSize: "0.82rem" }}
-                      onClick={() => {
-                        setPromotionMode("none");
-                        setDiscount(0);
-                        setPromotionCode("");
-                      }}
+                      className="btn btn-secondary"
+                      style={{ flexShrink: 0 }}
+                      onClick={handleCheckPromotionCode}
+                      disabled={
+                        validatePromoMutation.isPending || !promotionCode.trim()
+                      }
                     >
-                      Không giảm
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${promotionMode === "manual" ? "btn-primary" : "btn-secondary"}`}
-                      style={{ flex: 1, fontSize: "0.82rem" }}
-                      onClick={() => {
-                        setPromotionMode("manual");
-                        setPromotionCode("");
-                      }}
-                    >
-                      Nhập tay
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ${promotionMode === "code" ? "btn-primary" : "btn-secondary"}`}
-                      style={{ flex: 1, fontSize: "0.82rem" }}
-                      onClick={() => {
-                        setPromotionMode("code");
-                        setDiscount(0);
-                      }}
-                    >
-                      Mã khuyến mãi
+                      {validatePromoMutation.isPending ? "..." : "Kiểm tra"}
                     </button>
                   </div>
+                )}
 
-                  {promotionMode === "manual" && (
-                    <input
-                      type="number"
-                      className="form-control"
-                      placeholder="Số tiền giảm (VND)"
-                      value={discount}
-                      onChange={(e) =>
-                        setDiscount(Math.max(0, Number(e.target.value)))
-                      }
-                    />
-                  )}
-
-                  {promotionMode === "code" && (
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="VD: TET2026"
-                        value={promotionCode}
-                        onChange={(e) => {
-                          setPromotionCode(e.target.value.toUpperCase());
-                          setPreviewDiscount(0);
-                          setPreviewError(null);
-                        }}
-                        style={{ textTransform: "uppercase" }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ flexShrink: 0 }}
-                        onClick={handleCheckPromotionCode}
-                        disabled={
-                          validatePromoMutation.isPending ||
-                          !promotionCode.trim()
-                        }
-                      >
-                        {validatePromoMutation.isPending ? "..." : "Kiểm tra"}
-                      </button>
-                    </div>
-                  )}
-                  {promotionMode === "code" && previewDiscount > 0 && (
-                    <p
-                      style={{
-                        marginTop: 6,
-                        fontSize: "0.8rem",
-                        color: "var(--success)",
-                      }}
-                    >
-                      Áp dụng được — giảm{" "}
-                      {previewDiscount.toLocaleString("vi-VN")} đ
-                    </p>
-                  )}
-                  {promotionMode === "code" && previewError && (
-                    <p className="form-error" style={{ marginTop: 6 }}>
-                      ❌ {previewError}
-                    </p>
-                  )}
-                </div>
-                <input
-                  type="number"
-                  className="form-control"
-                  style={{
-                    width: "120px",
-                    padding: "4px 8px",
-                    fontSize: "0.9rem",
-                    textAlign: "right",
-                  }}
-                  value={discount}
-                  onChange={(e) =>
-                    setDiscount(Math.max(0, Number(e.target.value)))
-                  }
-                />
+                {promotionMode === "code" && previewDiscount > 0 && (
+                  <p
+                    style={{
+                      marginTop: 6,
+                      fontSize: "0.8rem",
+                      color: "var(--success)",
+                    }}
+                  >
+                    Áp dụng được — giảm{" "}
+                    {previewDiscount.toLocaleString("vi-VN")} đ
+                  </p>
+                )}
+                {promotionMode === "code" && previewError && (
+                  <p className="form-error" style={{ marginTop: 6 }}>
+                    ❌ {previewError}
+                  </p>
+                )}
               </div>
+
+              {/* Giảm giá cả đơn (kết quả áp dụng)*/}
+              {effectiveDiscount > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ color: "var(--danger)", fontSize: "0.9rem" }}>
+                    Giảm giá cả đơn
+                    {promotionMode === "code" && promotionCode
+                      ? ` (${promotionCode})`
+                      : ""}
+                    :
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "right",
+                      color: "var(--danger)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    − {effectiveDiscount.toLocaleString("vi-VN")} đ
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Giá cuối */}
               <div
                 className="flex-row-between"
                 style={{
@@ -760,31 +806,113 @@ export default function POSPage() {
                   textAlign: "left",
                 }}
               >
-                <p>
+                <p style={{ marginBottom: 12 }}>
                   <strong>Mã đơn hàng:</strong> #{completedOrder.id}
                 </p>
-                {discountedItemsCount > 0 && (
-                  <p style={{ fontSize: "0.8rem", color: "var(--warning)" }}>
-                    🏷️ Đơn có {discountedItemsCount} sản phẩm đã áp giảm giá cận
-                    hạn/sự kiện.
-                  </p>
-                )}
-                {completedOrder.discount_amount > 0 && (
-                  <div className="flex-row-between">
-                    <span>Đã giảm giá:</span>
-                    <span>
-                      − {completedOrder.discount_amount.toLocaleString("vi-VN")}{" "}
-                      đ
-                    </span>
-                  </div>
-                )}
-                <div className="flex-row-between">
+
+                {(() => {
+                  const grossOriginal = completedOrder.items.reduce(
+                    (sum, it) =>
+                      sum +
+                      (it.original_unit_price ?? it.unit_price) * it.quantity,
+                    0,
+                  );
+                  const expiryDiscountTotal = completedOrder.items.reduce(
+                    (sum, it) => {
+                      if (!it.original_unit_price) return sum;
+                      return (
+                        sum +
+                        (it.original_unit_price - it.unit_price) * it.quantity
+                      );
+                    },
+                    0,
+                  );
+
+                  return (
+                    <>
+                      {/* 1. Giá gốc */}
+                      <div
+                        className="flex-row-between"
+                        style={{ marginBottom: "8px" }}
+                      >
+                        <span style={{ color: "var(--text-secondary)" }}>
+                          Giá gốc:
+                        </span>
+                        <span>{grossOriginal.toLocaleString("vi-VN")} đ</span>
+                      </div>
+
+                      {/* 2. Giảm giá cận hạn/sự kiện */}
+                      {expiryDiscountTotal > 0 && (
+                        <div style={{ marginBottom: "8px" }}>
+                          <div
+                            style={{
+                              color: "var(--danger)",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            Giảm giá cận hạn/sự kiện:
+                          </div>
+                          <div
+                            style={{
+                              textAlign: "right",
+                              color: "var(--danger)",
+                              fontWeight: 600,
+                            }}
+                          >
+                            − {expiryDiscountTotal.toLocaleString("vi-VN")} đ
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. Giảm giá cả đơn */}
+                      {completedOrder.discount_amount > 0 && (
+                        <div style={{ marginBottom: "8px" }}>
+                          <div
+                            style={{
+                              color: "var(--danger)",
+                              fontSize: "0.9rem",
+                            }}
+                          >
+                            Giảm giá cả đơn
+                            {completedOrder.promotion_code
+                              ? ` (${completedOrder.promotion_code})`
+                              : ""}
+                            :
+                          </div>
+                          <div
+                            style={{
+                              textAlign: "right",
+                              color: "var(--danger)",
+                              fontWeight: 600,
+                            }}
+                          >
+                            −{" "}
+                            {completedOrder.discount_amount.toLocaleString(
+                              "vi-VN",
+                            )}{" "}
+                            đ
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* 4. Giá cuối */}
+                <div
+                  className="flex-row-between"
+                  style={{
+                    paddingTop: "12px",
+                    borderTop: "1px solid var(--border-color)",
+                  }}
+                >
                   <span style={{ fontWeight: 700 }}>Tổng tiền:</span>
-                  <span style={{ fontWeight: 700 }}>
+                  <span style={{ fontWeight: 700, color: "var(--primary)" }}>
                     {completedOrder.total_amount.toLocaleString("vi-VN")} đ
                   </span>
                 </div>
-                <p>
+
+                <p style={{ marginTop: 12 }}>
                   <strong>Phương thức:</strong>{" "}
                   {completedOrder.payment_method === "cash"
                     ? "Tiền mặt"
@@ -793,73 +921,6 @@ export default function POSPage() {
                       : "ZaloPay QR"}
                 </p>
               </div>
-              {completedOrder.qr_code &&
-                completedOrder.payment_status === "pending" && (
-                  <div style={{ marginBottom: "16px" }}>
-                    <p
-                      style={{
-                        marginBottom: "8px",
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      Quét mã QR bằng ứng dụng ZaloPay hoặc Ngân hàng:
-                    </p>
-                    <div
-                      style={{
-                        display: "inline-block",
-                        background: "white",
-                        padding: "8px",
-                        borderRadius: "12px",
-                        border: "1px solid var(--border-color)",
-                        margin: "8px 0",
-                      }}
-                    >
-                      <img
-                        src={completedOrder.qr_code}
-                        alt="ZaloPay QR Code"
-                        style={{
-                          width: "220px",
-                          height: "220px",
-                          display: "block",
-                        }}
-                      />
-                    </div>
-                    {completedOrder.qr_content && (
-                      <div style={{ marginTop: "16px" }}>
-                        <a
-                          href={completedOrder.qr_content}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-primary"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            textDecoration: "none",
-                          }}
-                        >
-                          <span className="material-symbols-outlined">
-                            open_in_new
-                          </span>{" "}
-                          Mở cổng thanh toán ZaloPay
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )}
-              {completedOrder.payment_status === "paid" && (
-                <div style={{ padding: "20px 0", color: "var(--success)" }}>
-                  <span
-                    className="material-symbols-outlined"
-                    style={{ fontSize: "4rem", marginBottom: "8px" }}
-                  >
-                    check_circle
-                  </span>
-                  <p style={{ fontWeight: "600", fontSize: "1.1rem" }}>
-                    Đã nhận được thanh toán từ ZaloPay!
-                  </p>
-                </div>
-              )}
             </div>
             <div className="modal-footer">
               {completedOrder.payment_status === "pending" && (

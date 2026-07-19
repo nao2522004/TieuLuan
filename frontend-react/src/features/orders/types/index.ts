@@ -4,8 +4,8 @@ export interface OrderItem {
   product_name: string | null;
   quantity: number;
   unit_price: number;
-  original_unit_price?: number | null;
-  discount_percent?: number;
+  original_unit_price: number | null;
+  discount_percent: number | null;
 }
 
 export interface Order {

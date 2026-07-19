@@ -8,13 +8,7 @@ export class OrderItemDto {
   @ApiProperty({ example: 1 })
   product_id: number;
 
-  @ApiProperty({
-    example: "Nước suối Lavie 500ml",
-    nullable: true,
-    description:
-      "Tên sản phẩm tại thời điểm tạo đơn (snapshot). " +
-      "NULL nếu đơn hàng được tạo trước khi có tính năng này.",
-  })
+  @ApiProperty({ example: "Nước suối Lavie 500ml", nullable: true })
   product_name: string | null;
 
   @ApiProperty({ example: 2 })
@@ -22,9 +16,27 @@ export class OrderItemDto {
 
   @ApiProperty({
     example: 6000,
-    description: "Giá bán tại thời điểm tạo đơn (snapshot)",
+    description:
+      "Giá bán tại thời điểm tạo đơn (đã bao gồm giảm giá cận hạn nếu có) - snapshot",
   })
   unit_price: number;
+
+  @ApiProperty({
+    example: 8000,
+    nullable: true,
+    description:
+      "Giá bán gốc trước khi áp giảm giá cận hạn (snapshot tại thời điểm bán). " +
+      "NULL nếu sản phẩm không bị áp giảm giá cận hạn khi bán.",
+  })
+  original_unit_price: number | null;
+
+  @ApiProperty({
+    example: 25,
+    nullable: true,
+    description:
+      "% giảm giá cận hạn đã áp dụng tại thời điểm bán, NULL nếu không áp dụng",
+  })
+  discount_percent: number | null;
 }
 
 export class OrderDataDto {
