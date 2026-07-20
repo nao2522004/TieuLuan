@@ -59,7 +59,6 @@ export class Product {
   @Column({ name: "reorder_level", type: "integer", default: 10 })
   reorderLevel: number;
 
-  /** @deprecated dùng nearestExpiryDate thay thế */
   @Column({ name: "expiry_date", type: "date", nullable: true })
   expiryDate: string | null;
 

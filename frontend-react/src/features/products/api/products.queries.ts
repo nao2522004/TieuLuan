@@ -29,6 +29,7 @@ export function useProductBarcodeQuery(
     queryFn: () => productsApi.getProductByBarcode(code, branchId),
     enabled: enabled && !!code,
     retry: false,
+    staleTime: 0,
   });
 }
 
@@ -36,6 +37,7 @@ export function useProductAlertsQuery(branchId?: number) {
   return useQuery({
     queryKey: ["products", "alerts", branchId],
     queryFn: () => productsApi.getProductAlerts(branchId),
+    staleTime: 0,
   });
 }
 
@@ -109,5 +111,14 @@ export function useUpdateProductBatchMutation() {
       queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
       notify.success("Cập nhật lô hàng thành công!");
     },
+  });
+}
+
+export function useProductQuoteQuery(productId?: number, quantity?: number) {
+  return useQuery({
+    queryKey: ["products", "quote", productId, quantity],
+    queryFn: () => productsApi.getProductQuote(productId!, quantity!),
+    enabled: !!productId && !!quantity && quantity > 0,
+    staleTime: 0,
   });
 }

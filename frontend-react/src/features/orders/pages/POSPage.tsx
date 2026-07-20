@@ -8,6 +8,7 @@ import {
 import type { CartItem, Order } from "../types";
 import { notify } from "@/lib/notify";
 import { ordersApi } from "../api/orders.api";
+import { productsApi } from "@/features/products/api/products.api";
 import { ReceiptPrintView } from "../components/ReceiptPrintView";
 import { useBranchDetailQuery } from "@/features/branches/api/branches.queries";
 import { useValidatePromotionMutation } from "@/features/promotions";
@@ -99,13 +100,31 @@ export default function POSPage() {
   const createOrderMutation = useCreateOrderMutation();
   const confirmPaymentMutation = useConfirmPaymentMutation();
 
-  const updateQty = (pid: number, qty: number) => {
+  const updateQty = async (pid: number, qty: number) => {
     if (qty <= 0) {
       setCart((prev) => prev.filter((i) => i.product_id !== pid));
-    } else {
+      return;
+    }
+    setCart((prev) =>
+      prev.map((i) => (i.product_id === pid ? { ...i, quantity: qty } : i)),
+    );
+
+    try {
+      const quote = await productsApi.getProductQuote(pid, qty);
       setCart((prev) =>
-        prev.map((i) => (i.product_id === pid ? { ...i, quantity: qty } : i)),
+        prev.map((i) =>
+          i.product_id === pid
+            ? {
+                ...i,
+                unit_price: quote.unit_price,
+                original_price: quote.original_unit_price ?? i.original_price,
+                discount_percent: quote.discount_percent ?? 0,
+              }
+            : i,
+        ),
       );
+    } catch {
+      notify.error("Không lấy được báo giá mới nhất, vui lòng thử lại.");
     }
   };
 

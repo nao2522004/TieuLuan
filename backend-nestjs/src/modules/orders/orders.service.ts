@@ -28,6 +28,7 @@ interface LineItem {
   unitPrice: number;
   originalUnitPrice: number | null;
   expiryDiscountPercent: number | null;
+  lineTotal: number;
   consumedBatches: { batchId: number; quantityTaken: number }[];
 }
 
@@ -120,34 +121,45 @@ export class OrdersService {
             );
           }
 
-          // Trừ kho theo nguyên tắc FEFO qua các lô
-          const consumedBatches = await this.batchConsumptionService.consumeFefo(
-            manager,
-            item.product_id,
-            item.quantity,
-          );
+          // Trừ kho FEFO — nhận về danh sách lô đã bốc kèm hạn dùng thực tế của từng lô
+          const consumedBatches =
+            await this.batchConsumptionService.consumeFefo(
+              manager,
+              item.product_id,
+              item.quantity,
+            );
 
-          // Lấy lại thông tin sản phẩm sau khi đã được cập nhật nearestExpiryDate trong consumeFefo
-          const updatedProduct = await productRepo.findOne({
-            where: { id: item.product_id },
-          });
+          const salePrice = Number(product.salePrice);
 
-          const pricing = await this.expiryPricingService.computeEffectivePrice(
-            Number(product.salePrice),
-            updatedProduct ? updatedProduct.nearestExpiryDate : null,
-          );
+          // ⭐ CỘNG DỒN tiền theo TỪNG LÔ đã thực sự xuất — không dùng trạng thái tồn kho sau cùng
+          let lineTotal = 0;
+          for (const cb of consumedBatches) {
+            const pricing =
+              await this.expiryPricingService.computeEffectivePrice(
+                salePrice,
+                cb.expiryDate,
+              );
+            lineTotal += pricing.effective_price * cb.quantityTaken;
+          }
+          lineTotal = Math.round(lineTotal * 100) / 100; // khớp NUMERIC(12,2)
+
+          const originalTotal = salePrice * item.quantity;
+          const isDiscounted = lineTotal < originalTotal;
+          const unitPrice = Math.round((lineTotal / item.quantity) * 100) / 100;
+          const blendedDiscountPercent = isDiscounted
+            ? Math.round(
+                ((originalTotal - lineTotal) / originalTotal) * 10000,
+              ) / 100
+            : null;
 
           lineItems.push({
             productId: product.id,
             productName: product.name,
             quantity: item.quantity,
-            unitPrice: pricing.effective_price,
-            originalUnitPrice: pricing.is_expiry_discount_applied
-              ? Number(product.salePrice)
-              : null,
-            expiryDiscountPercent: pricing.is_expiry_discount_applied
-              ? pricing.discount_percent
-              : null,
+            unitPrice,
+            originalUnitPrice: isDiscounted ? salePrice : null,
+            expiryDiscountPercent: blendedDiscountPercent,
+            lineTotal,
             consumedBatches,
           });
         }
@@ -289,7 +301,10 @@ export class OrdersService {
           const orderRepo = manager.getRepository(Order);
 
           for (const item of items) {
-            await this.batchConsumptionService.restoreExactBatches(manager, item.id);
+            await this.batchConsumptionService.restoreExactBatches(
+              manager,
+              item.id,
+            );
           }
 
           order.status = "cancelled";
@@ -549,7 +564,10 @@ export class OrdersService {
         );
 
         for (const item of sortedItems) {
-          await this.batchConsumptionService.restoreExactBatches(manager, item.id);
+          await this.batchConsumptionService.restoreExactBatches(
+            manager,
+            item.id,
+          );
         }
 
         lockedOrder.status = "cancelled";

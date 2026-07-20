@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { EntityManager } from "typeorm";
+import { InjectRepository } from "@nestjs/typeorm";
+import { EntityManager, Repository } from "typeorm";
 import { Product } from "./entities/product.entity";
 import { ProductBatch } from "./entities/product-batch.entity";
 import { OrderItemBatch } from "../orders/entities/order-item-batch.entity";
@@ -7,20 +8,22 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 
 @Injectable()
 export class BatchConsumptionService {
-  /**
-   * Trừ kho theo nguyên tắc FEFO (First-Expired-First-Out).
-   * Bắt buộc chạy trong transaction đã được mở sẵn.
-   */
+  constructor(
+    @InjectRepository(ProductBatch)
+    private readonly productBatchRepository: Repository<ProductBatch>,
+  ) {}
+
   async consumeFefo(
     manager: EntityManager,
     productId: number,
     quantity: number,
-  ): Promise<{ batchId: number; quantityTaken: number }[]> {
+  ): Promise<
+    { batchId: number; quantityTaken: number; expiryDate: string | null }[]
+  > {
     if (quantity <= 0) {
       return [];
     }
 
-    // 1. Lock Row Product
     const product = await manager
       .getRepository(Product)
       .createQueryBuilder("p")
@@ -36,19 +39,24 @@ export class BatchConsumptionService {
       );
     }
 
-    // 2. Lock Row các lô còn hàng của sản phẩm, sắp theo FEFO (expiry_date ASC NULLS LAST, id ASC)
     const batches = await manager
       .getRepository(ProductBatch)
       .createQueryBuilder("pb")
       .setLock("pessimistic_write")
-      .where("pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0", {
-        productId,
-      })
+      .where(
+        "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+        {
+          productId,
+        },
+      )
       .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
       .addOrderBy("pb.id", "ASC")
       .getMany();
 
-    const totalRemaining = batches.reduce((sum, b) => sum + b.quantityRemaining, 0);
+    const totalRemaining = batches.reduce(
+      (sum, b) => sum + b.quantityRemaining,
+      0,
+    );
     if (totalRemaining < quantity) {
       throw new BusinessException(
         "INVENTORY_INSUFFICIENT",
@@ -57,9 +65,12 @@ export class BatchConsumptionService {
       );
     }
 
-    // 3. Trừ dần tồn kho qua các lô
     let quantityToConsume = quantity;
-    const consumed: { batchId: number; quantityTaken: number }[] = [];
+    const consumed: {
+      batchId: number;
+      quantityTaken: number;
+      expiryDate: string | null;
+    }[] = [];
 
     for (const batch of batches) {
       if (quantityToConsume <= 0) break;
@@ -68,20 +79,25 @@ export class BatchConsumptionService {
       batch.quantityRemaining -= take;
       quantityToConsume -= take;
 
-      consumed.push({ batchId: batch.id, quantityTaken: take });
+      consumed.push({
+        batchId: batch.id,
+        quantityTaken: take,
+        expiryDate: batch.expiryDate,
+      });
       await manager.getRepository(ProductBatch).save(batch);
     }
 
-    // 4. Cập nhật stock_quantity của Product
     product.stockQuantity -= quantity;
 
-    // 5. Cập nhật lại nearest_expiry_date cho Product
     const earliestBatch = await manager
       .getRepository(ProductBatch)
       .createQueryBuilder("pb")
-      .where("pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0", {
-        productId,
-      })
+      .where(
+        "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+        {
+          productId,
+        },
+      )
       .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
       .addOrderBy("pb.id", "ASC")
       .getOne();
@@ -92,10 +108,6 @@ export class BatchConsumptionService {
     return consumed;
   }
 
-  /**
-   * Nhận lô hàng mới (nhập kho).
-   * Bắt buộc chạy trong transaction đã được mở sẵn.
-   */
   async receiveBatch(
     manager: EntityManager,
     productId: number,
@@ -105,7 +117,6 @@ export class BatchConsumptionService {
     createdBy: number,
     batchCode?: string,
   ): Promise<ProductBatch> {
-    // 1. Lock Row Product
     const product = await manager
       .getRepository(Product)
       .createQueryBuilder("p")
@@ -121,7 +132,6 @@ export class BatchConsumptionService {
       );
     }
 
-    // 2. Tạo lô hàng
     const batchRepo = manager.getRepository(ProductBatch);
     const code = batchCode && batchCode.trim() ? batchCode.trim() : null;
 
@@ -137,7 +147,6 @@ export class BatchConsumptionService {
 
     const savedBatch = await batchRepo.save(newBatch);
 
-    // Fallback thông minh: nếu trống mã lô -> tự sinh theo format LÔ-YYYYMMDD-ID
     if (!code) {
       const now = new Date();
       const yyyy = now.getFullYear();
@@ -147,16 +156,17 @@ export class BatchConsumptionService {
       await batchRepo.save(savedBatch);
     }
 
-    // 3. Cộng tồn kho Product
     product.stockQuantity += quantity;
 
-    // 4. Cập nhật nearest_expiry_date
     const earliestBatch = await manager
       .getRepository(ProductBatch)
       .createQueryBuilder("pb")
-      .where("pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0", {
-        productId,
-      })
+      .where(
+        "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+        {
+          productId,
+        },
+      )
       .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
       .addOrderBy("pb.id", "ASC")
       .getOne();
@@ -167,14 +177,13 @@ export class BatchConsumptionService {
     return savedBatch;
   }
 
-  /**
-   * Hoàn trả chính xác số lượng về các lô đã trừ trước đó.
-   * Bắt buộc chạy trong transaction đã được mở sẵn.
-   */
-  async restoreExactBatches(manager: EntityManager, orderItemId: number): Promise<void> {
+  async restoreExactBatches(
+    manager: EntityManager,
+    orderItemId: number,
+  ): Promise<void> {
     const itemBatches = await manager.getRepository(OrderItemBatch).find({
       where: { orderItemId },
-      order: { batchId: "ASC" }, // Đảm bảo thứ tự khóa ổn định tránh deadlock
+      order: { batchId: "ASC" },
     });
 
     if (itemBatches.length === 0) return;
@@ -209,20 +218,57 @@ export class BatchConsumptionService {
       if (product) {
         product.stockQuantity += totalRestored;
 
-        // Cập nhật lại nearest_expiry_date
         const earliestBatch = await manager
           .getRepository(ProductBatch)
           .createQueryBuilder("pb")
-          .where("pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0", {
-            productId,
-          })
+          .where(
+            "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+            {
+              productId,
+            },
+          )
           .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
           .addOrderBy("pb.id", "ASC")
           .getOne();
 
-        product.nearestExpiryDate = earliestBatch ? earliestBatch.expiryDate : null;
+        product.nearestExpiryDate = earliestBatch
+          ? earliestBatch.expiryDate
+          : null;
         await manager.getRepository(Product).save(product);
       }
     }
+  }
+
+  async simulateFefo(
+    productId: number,
+    quantity: number,
+  ): Promise<{ expiryDate: string | null; quantityTaken: number }[]> {
+    if (quantity <= 0) return [];
+
+    const batches = await this.productBatchRepository
+      .createQueryBuilder("pb")
+      .where(
+        "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+        { productId },
+      )
+      .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
+      .addOrderBy("pb.id", "ASC")
+      .getMany();
+
+    let remaining = quantity;
+    const result: { expiryDate: string | null; quantityTaken: number }[] = [];
+
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      const take = Math.min(batch.quantityRemaining, remaining);
+      result.push({ expiryDate: batch.expiryDate, quantityTaken: take });
+      remaining -= take;
+    }
+
+    if (remaining > 0) {
+      result.push({ expiryDate: null, quantityTaken: remaining });
+    }
+
+    return result;
   }
 }

@@ -90,6 +90,18 @@ export const productsApi = {
     return (res as unknown as ApiSuccessResponse<ProductBatchDetail[]>).data;
   },
 
+  getProductQuote: async (productId: number, quantity: number) => {
+    const res = await apiClient.get<
+      ApiSuccessResponse<{
+        unit_price: number;
+        original_unit_price: number | null;
+        discount_percent: number | null;
+        line_total: number;
+      }>
+    >(`/products/${productId}/quote`, { params: { quantity } });
+    return (res as unknown as ApiSuccessResponse<any>).data;
+  },
+
   updateProductBatch: async (
     batchId: number,
     payload: UpdateProductBatchPayload,

@@ -26,6 +26,7 @@ import {
   ProductBatchDto,
   UpdateProductBatchDto,
 } from "./dto/product-batch.dto";
+import { BatchConsumptionService } from "./batch-consumption.service";
 
 const CACHE_PREFIX = "products";
 
@@ -45,6 +46,7 @@ export class ProductsService {
     private readonly branchesService: BranchesService,
     private readonly categoriesService: CategoriesService,
     private readonly expiryPricingService: ExpiryPricingService,
+    private readonly batchConsumptionService: BatchConsumptionService,
   ) {
     this.cacheTtl = parseInt(
       this.configService.get<string>("REDIS_CACHE_TTL") ?? "3600",
@@ -565,6 +567,47 @@ export class ProductsService {
       unit_cost: saved.unitCost ?? null,
       received_at: saved.receivedAt,
       created_by: saved.createdBy ?? null,
+    };
+  }
+
+  async quoteEffectivePrice(
+    productId: number,
+    quantity: number,
+  ): Promise<{
+    unit_price: number;
+    original_unit_price: number | null;
+    discount_percent: number | null;
+    line_total: number;
+  }> {
+    const product = await this.findActiveOrThrow(productId);
+    const salePrice = Number(product.salePrice);
+
+    const simulated = await this.batchConsumptionService.simulateFefo(
+      productId,
+      quantity,
+    );
+
+    let lineTotal = 0;
+    for (const s of simulated) {
+      const pricing = await this.expiryPricingService.computeEffectivePrice(
+        salePrice,
+        s.expiryDate,
+      );
+      lineTotal += pricing.effective_price * s.quantityTaken;
+    }
+    lineTotal = Math.round(lineTotal * 100) / 100;
+
+    const originalTotal = salePrice * quantity;
+    const isDiscounted = lineTotal < originalTotal;
+
+    return {
+      unit_price: Math.round((lineTotal / quantity) * 100) / 100,
+      original_unit_price: isDiscounted ? salePrice : null,
+      discount_percent: isDiscounted
+        ? Math.round(((originalTotal - lineTotal) / originalTotal) * 10000) /
+          100
+        : null,
+      line_total: lineTotal,
     };
   }
 }

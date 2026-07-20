@@ -25,6 +25,8 @@ export function useCreateOrderMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["products", "barcode"] });
     },
   });
 }
@@ -35,7 +37,9 @@ export function useConfirmPaymentMutation() {
     mutationFn: (id: number) => ordersApi.confirmPayment(id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["orders", "detail", data.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["orders", "detail", data.id],
+      });
       notify.success("Xác nhận thanh toán thành công!");
     },
   });
@@ -47,7 +51,9 @@ export function useCancelOrderMutation() {
     mutationFn: (id: number) => ordersApi.cancelOrder(id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["orders", "detail", data.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["orders", "detail", data.id],
+      });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       notify.success("Hủy đơn hàng thành công!");
     },

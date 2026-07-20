@@ -134,6 +134,21 @@ export class ProductsController {
     return this.productsService.findBatchesByProduct(id);
   }
 
+  @Get(":id/quote")
+  @ApiOperation({
+    summary:
+      "Báo giá real-time cho N đơn vị hàng, mô phỏng FEFO không khóa/không ghi DB. " +
+      "Dùng cho preview trước khi thanh toán (POS). Giá thật chốt tại POST /orders.",
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  getQuote(
+    @Param("id", ParseIntIdPipe) id: number,
+    @Query("quantity", ParseIntIdPipe) quantity: number,
+  ) {
+    return this.productsService.quoteEffectivePrice(id, quantity);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Chi tiết 1 sản phẩm (có cache Redis)" })
   @ApiResponse({ status: 200, type: ProductResponseDto })

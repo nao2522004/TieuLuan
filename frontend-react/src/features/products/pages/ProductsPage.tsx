@@ -262,10 +262,9 @@ export default function ProductsPage() {
                 {products.map((product) => {
                   const isLowStock =
                     product.stock_quantity <= product.reorder_level;
-                  const isExpiring = product.expiry_date
-                    ? new Date(product.expiry_date).getTime() <
-                      new Date().getTime() + 7 * 24 * 60 * 60 * 1000
-                    : false;
+                  const isExpiring = product.is_expiry_discount_applied;
+                  const displayExpiryDate =
+                    product.nearest_expiry_date ?? product.expiry_date ?? null;
 
                   return (
                     <tr key={product.id}>
@@ -347,7 +346,7 @@ export default function ProductsPage() {
                       </td>
                       <td>{product.reorder_level}</td>
                       <td>
-                        {product.expiry_date ? (
+                        {displayExpiryDate ? (
                           <span
                             style={{
                               color: isExpiring
@@ -355,7 +354,7 @@ export default function ProductsPage() {
                                 : "var(--text-secondary)",
                             }}
                           >
-                            {new Date(product.expiry_date).toLocaleDateString(
+                            {new Date(displayExpiryDate).toLocaleDateString(
                               "vi-VN",
                             )}
                           </span>
