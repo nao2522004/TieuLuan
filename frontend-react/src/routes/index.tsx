@@ -20,6 +20,15 @@ const CategoriesPage = lazy(
 const BranchesPage = lazy(
   () => import("@/features/branches/pages/BranchesPage"),
 );
+const InventoryInboundPage = lazy(
+  () => import("@/features/inventory/pages/InventoryInboundPage"),
+);
+const InventoryAdjustmentPage = lazy(
+  () => import("@/features/inventory/pages/InventoryAdjustmentPage"),
+);
+const StocktakesPage = lazy(
+  () => import("@/features/stocktakes/pages/StocktakesPage"),
+);
 const ShiftsPage = lazy(() => import("@/features/shifts/pages/ShiftsPage"));
 const POSPage = lazy(() => import("@/features/orders/pages/POSPage"));
 const OrdersPage = lazy(() => import("@/features/orders/pages/OrdersPage"));
@@ -99,6 +108,15 @@ export const router = createBrowserRouter([
       { path: "/users", element: withSuspense(<UsersPage />) },
       { path: "/expiry-pricing", element: withSuspense(<ExpiryPricingPage />) },
       { path: "/promotions", element: withSuspense(<PromotionsPage />) },
+      {
+        path: "/inventory/inbound",
+        element: withSuspense(<InventoryInboundPage />),
+      },
+      {
+        path: "/inventory/adjustments",
+        element: withSuspense(<InventoryAdjustmentPage />),
+      },
+      { path: "/stocktakes", element: withSuspense(<StocktakesPage />) },
     ],
   },
 ]);
