@@ -9,8 +9,7 @@ import {
   Min,
 } from "class-validator";
 
-// --------------- Response DTO ---------------
-
+//  Response DTO
 export class ProductBatchDto {
   @ApiProperty({ example: 1 })
   id: number;
@@ -41,29 +40,51 @@ export class ProductBatchDto {
 }
 
 export class ProductBatchListResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
   @ApiProperty({ type: [ProductBatchDto] })
   data: ProductBatchDto[];
+
+  @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
+  timestamp: string;
 }
 
-// --------------- Update DTO ---------------
-
 export class UpdateProductBatchDto {
-  /** Chỉ cho phép sửa batch_code và expiry_date theo quy tắc Fallback thông minh */
-
-  @ApiPropertyOptional({ example: "LÔ-20251231-1", description: "Mã lô. Nếu để trống sẽ giữ nguyên." })
+  @ApiPropertyOptional({
+    example: "LÔ-20251231-1",
+    description: "Mã lô. Nếu để trống sẽ giữ nguyên.",
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   batch_code?: string;
 
-  @ApiPropertyOptional({ example: "2025-12-31", description: "Hạn sử dụng (YYYY-MM-DD). Nếu để trống sẽ giữ nguyên." })
+  @ApiPropertyOptional({
+    example: "2025-12-31",
+    description: "Hạn sử dụng (YYYY-MM-DD). Nếu để trống sẽ giữ nguyên.",
+  })
   @IsOptional()
   @IsDateString()
   expiry_date?: string | null;
 
-  @ApiPropertyOptional({ example: 25000, description: "Giá nhập mỗi đơn vị (không âm)." })
+  @ApiPropertyOptional({
+    example: 25000,
+    description: "Giá nhập mỗi đơn vị (không âm).",
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
   unit_cost?: number | null;
+}
+
+export class ProductBatchResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: ProductBatchDto })
+  data: ProductBatchDto;
+
+  @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
+  timestamp: string;
 }

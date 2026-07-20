@@ -14,6 +14,12 @@ const schema = z.object({
     (v) => (v === "" || v === undefined ? undefined : Number(v)),
     z.number().min(0, "Phải >= 0").optional(),
   ),
+  expiry_date: z.string().optional().or(z.literal("")),
+  batch_code: z
+    .string()
+    .max(100, "Tối đa 100 ký tự")
+    .optional()
+    .or(z.literal("")),
   note: z.string().max(255, "Tối đa 255 ký tự").optional().or(z.literal("")),
 });
 type FormValues = z.infer<typeof schema>;
@@ -61,6 +67,8 @@ export function InventoryInboundForm({
       product_id: selectedProduct.id,
       quantity: values.quantity,
       unit_cost: values.unit_cost,
+      expiry_date: values.expiry_date || undefined,
+      batch_code: values.batch_code || undefined,
       note: values.note || undefined,
     });
   };
@@ -132,6 +140,52 @@ export function InventoryInboundForm({
           {errors.unit_cost && (
             <p className="form-error">{errors.unit_cost.message}</p>
           )}
+        </div>
+      </div>
+
+      <div className="grid-cols-2">
+        <div className="form-group">
+          <label htmlFor="expiry_date">Hạn sử dụng của lô hàng</label>
+          <input
+            id="expiry_date"
+            type="date"
+            className="form-control"
+            {...register("expiry_date")}
+          />
+          {errors.expiry_date && (
+            <p className="form-error">{errors.expiry_date.message}</p>
+          )}
+          <p
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--text-muted)",
+              marginTop: 4,
+            }}
+          >
+            Không bắt buộc — bỏ trống nếu hàng không có hạn sử dụng
+          </p>
+        </div>
+        <div className="form-group">
+          <label htmlFor="batch_code">Mã lô (tùy chọn)</label>
+          <input
+            id="batch_code"
+            type="text"
+            className="form-control"
+            placeholder="VD: LÔ-20261231-01"
+            {...register("batch_code")}
+          />
+          {errors.batch_code && (
+            <p className="form-error">{errors.batch_code.message}</p>
+          )}
+          <p
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--text-muted)",
+              marginTop: 4,
+            }}
+          >
+            Bỏ trống hệ thống sẽ tự sinh mã lô
+          </p>
         </div>
       </div>
 

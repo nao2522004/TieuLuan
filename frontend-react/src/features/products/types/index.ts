@@ -61,3 +61,9 @@ export interface CreateProductPayload {
 }
 
 export interface UpdateProductPayload extends Partial<CreateProductPayload> {}
+
+export interface UpdateProductBatchPayload {
+  batch_code?: string;
+  expiry_date?: string | null;
+  unit_cost?: number | null;
+}

@@ -23,6 +23,8 @@ export interface CreateInboundPayload {
   quantity: number;
   unit_cost?: number;
   note?: string;
+  expiry_date?: string;
+  batch_code?: string;
 }
 
 export interface CreateAdjustmentPayload {

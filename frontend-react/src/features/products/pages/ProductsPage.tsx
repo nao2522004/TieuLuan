@@ -11,6 +11,7 @@ import {
 } from "../api/products.queries";
 import { ProductForm } from "../components/ProductForm";
 import type { Product, CreateProductPayload } from "../types";
+import { ProductBatchesModal } from "../components/ProductBatchesModal";
 
 export default function ProductsPage() {
   const { user } = useAuth();
@@ -49,6 +50,9 @@ export default function ProductsPage() {
   const deleteMutation = useDeleteProductMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [batchesProduct, setBatchesProduct] = useState<Product | undefined>(
+    undefined,
+  );
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(
     undefined,
   );
@@ -251,7 +255,7 @@ export default function ProductsPage() {
                   <th>Tồn kho</th>
                   <th>Ngưỡng cảnh báo</th>
                   <th>Hạn sử dụng</th>
-                  {isAdmin && <th style={{ textAlign: "right" }}>Thao tác</th>}
+                  <th style={{ textAlign: "right" }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,24 +368,38 @@ export default function ProductsPage() {
                           <div className="flex-row-end" style={{ gap: "8px" }}>
                             <button
                               className="btn btn-secondary"
-                              onClick={() => handleOpenEditModal(product)}
+                              onClick={() => setBatchesProduct(product)}
                               style={{
                                 padding: "6px 12px",
                                 fontSize: "0.85rem",
                               }}
                             >
-                              Sửa
+                              📦 Lô hàng
                             </button>
-                            <button
-                              className="btn btn-danger"
-                              onClick={() => handleDelete(product.id)}
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "0.85rem",
-                              }}
-                            >
-                              Xóa
-                            </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  className="btn btn-secondary"
+                                  onClick={() => handleOpenEditModal(product)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  className="btn btn-danger"
+                                  onClick={() => handleDelete(product.id)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  Xóa
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       )}
@@ -471,6 +489,14 @@ export default function ProductsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {batchesProduct && (
+        <ProductBatchesModal
+          productId={batchesProduct.id}
+          productName={batchesProduct.name}
+          onClose={() => setBatchesProduct(undefined)}
+        />
       )}
     </div>
   );

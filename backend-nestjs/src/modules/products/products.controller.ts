@@ -24,7 +24,10 @@ import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
 import { ProductBranchScopeDto } from "./dto/product-branch-scope.dto";
-import { QueryProductAlertsDto, QueryExpiringSoonDto } from "./dto/query-product-alerts.dto";
+import {
+  QueryProductAlertsDto,
+  QueryExpiringSoonDto,
+} from "./dto/query-product-alerts.dto";
 import {
   PaginatedProductResponseDto,
   ProductAlertsResponseDto,
@@ -38,11 +41,8 @@ import { ParseIntIdPipe } from "../../common/pipes/parse-int-id.pipe";
 import {
   ProductBatchListResponseDto,
   UpdateProductBatchDto,
+  ProductBatchResponseDto,
 } from "./dto/product-batch.dto";
-
-// ──────────────────────────────────────────────────────────────────
-// Products Controller  –  /products
-// ──────────────────────────────────────────────────────────────────
 
 @ApiTags("products")
 @ApiBearerAuth()
@@ -58,7 +58,6 @@ export class ProductsController {
     return this.productsService.findAll(query);
   }
 
-  // 2 route dưới đây BẮT BUỘC khai báo TRƯỚC @Get(":id"),
   @Get("alerts")
   @ApiOperation({
     summary:
@@ -164,6 +163,7 @@ export class ProductsController {
   @ApiOperation({
     summary: "Cập nhật sản phẩm (chỉ admin) - evict cache Redis ngay lập tức",
   })
+  @ApiResponse({ status: 200, type: ProductBatchResponseDto })
   @ApiResponse({ status: 200, type: ProductResponseDto })
   @ApiResponse({ status: 404, type: ApiErrorResponse })
   @ApiResponse({ status: 409, type: ApiErrorResponse })
@@ -184,10 +184,6 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 }
-
-// ──────────────────────────────────────────────────────────────────
-// Product-Batches Controller  –  /product-batches
-// ──────────────────────────────────────────────────────────────────
 
 @ApiTags("product-batches")
 @ApiBearerAuth()

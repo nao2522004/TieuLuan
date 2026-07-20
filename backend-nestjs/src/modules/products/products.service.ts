@@ -7,7 +7,10 @@ import { ProductBatch } from "./entities/product-batch.entity";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
-import { QueryProductAlertsDto, QueryExpiringSoonDto } from "./dto/query-product-alerts.dto";
+import {
+  QueryProductAlertsDto,
+  QueryExpiringSoonDto,
+} from "./dto/query-product-alerts.dto";
 import {
   ProductDto,
   ProductDtoWithoutPricing,
@@ -487,11 +490,9 @@ export class ProductsService {
       await this.redisService.del(...keys);
     }
   }
-  // ─── Batch management ────────────────────────────────────────────────────────
 
-  async findBatchesByProduct(
-    productId: number,
-  ): Promise<{ data: ProductBatchDto[] }> {
+  //  Batch management
+  async findBatchesByProduct(productId: number): Promise<ProductBatchDto[]> {
     await this.findActiveOrThrow(productId);
 
     const batches = await this.productBatchRepository.find({
@@ -499,25 +500,23 @@ export class ProductsService {
       order: { expiryDate: "ASC", id: "ASC" },
     });
 
-    return {
-      data: batches.map((b) => ({
-        id: b.id,
-        product_id: b.productId,
-        batch_code: b.batchCode,
-        expiry_date: b.expiryDate ?? null,
-        quantity_received: b.quantityReceived,
-        quantity_remaining: b.quantityRemaining,
-        unit_cost: b.unitCost ?? null,
-        received_at: b.receivedAt,
-        created_by: b.createdBy ?? null,
-      })),
-    };
+    return batches.map((b) => ({
+      id: b.id,
+      product_id: b.productId,
+      batch_code: b.batchCode,
+      expiry_date: b.expiryDate ?? null,
+      quantity_received: b.quantityReceived,
+      quantity_remaining: b.quantityRemaining,
+      unit_cost: b.unitCost ?? null,
+      received_at: b.receivedAt,
+      created_by: b.createdBy ?? null,
+    }));
   }
 
   async updateBatch(
     batchId: number,
     dto: UpdateProductBatchDto,
-  ): Promise<{ data: ProductBatchDto }> {
+  ): Promise<ProductBatchDto> {
     const batch = await this.productBatchRepository.findOne({
       where: { id: batchId, deletedAt: IsNull() },
     });
@@ -530,7 +529,6 @@ export class ProductsService {
       );
     }
 
-    // Áp dụng Fallback thông minh: ưu tiên DTO → giữ nguyên nếu trống
     if (dto.batch_code !== undefined && dto.batch_code.trim() !== "") {
       batch.batchCode = dto.batch_code.trim();
     }
@@ -543,33 +541,30 @@ export class ProductsService {
 
     const saved = await this.productBatchRepository.save(batch);
 
-    // Cập nhật lại nearestExpiryDate trên sản phẩm sau khi sửa lô
     await this.dataSource.query(
       `UPDATE products
-       SET nearest_expiry_date = (
-         SELECT MIN(expiry_date)
-         FROM product_batches
-         WHERE product_id = $1
-           AND quantity_remaining > 0
-           AND expiry_date IS NOT NULL
-           AND deleted_at IS NULL
-       )
-       WHERE id = $1`,
+     SET nearest_expiry_date = (
+       SELECT MIN(expiry_date)
+       FROM product_batches
+       WHERE product_id = $1
+         AND quantity_remaining > 0
+         AND expiry_date IS NOT NULL
+         AND deleted_at IS NULL
+     )
+     WHERE id = $1`,
       [saved.productId],
     );
 
     return {
-      data: {
-        id: saved.id,
-        product_id: saved.productId,
-        batch_code: saved.batchCode,
-        expiry_date: saved.expiryDate ?? null,
-        quantity_received: saved.quantityReceived,
-        quantity_remaining: saved.quantityRemaining,
-        unit_cost: saved.unitCost ?? null,
-        received_at: saved.receivedAt,
-        created_by: saved.createdBy ?? null,
-      },
+      id: saved.id,
+      product_id: saved.productId,
+      batch_code: saved.batchCode,
+      expiry_date: saved.expiryDate ?? null,
+      quantity_received: saved.quantityReceived,
+      quantity_remaining: saved.quantityRemaining,
+      unit_cost: saved.unitCost ?? null,
+      received_at: saved.receivedAt,
+      created_by: saved.createdBy ?? null,
     };
   }
 }

@@ -4,9 +4,12 @@ import { useProductAlertsQuery } from "../api/products.queries";
 export default function ProductAlertsPage() {
   const { user } = useAuth();
 
-  const { data: alerts, isLoading } = useProductAlertsQuery(user?.branch_id ?? undefined);
+  const { data: alerts, isLoading } = useProductAlertsQuery(
+    user?.branch_id ?? undefined,
+  );
 
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString("vi-VN");
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("vi-VN");
 
   return (
     <div className="animate-fade-in">
@@ -18,20 +21,40 @@ export default function ProductAlertsPage() {
       </div>
 
       {isLoading ? (
-        <div style={{ textAlign: "center", padding: "40px" }}>Đang tải cảnh báo...</div>
+        <div style={{ textAlign: "center", padding: "40px" }}>
+          Đang tải cảnh báo...
+        </div>
       ) : (
         <div className="grid-cols-2" style={{ gap: "24px" }}>
           {/* Low Stock Panel */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid var(--border-color)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
               <span style={{ fontSize: "1.5rem" }}>📦</span>
               <div>
-                <h3 style={{ fontSize: "1rem", marginBottom: "2px" }}>Tồn kho thấp</h3>
-                <p style={{ fontSize: "0.8rem", margin: 0 }}>{alerts?.low_stock.length ?? 0} sản phẩm dưới ngưỡng cảnh báo</p>
+                <h3 style={{ fontSize: "1rem", marginBottom: "2px" }}>
+                  Tồn kho thấp
+                </h3>
+                <p style={{ fontSize: "0.8rem", margin: 0 }}>
+                  {alerts?.low_stock.length ?? 0} sản phẩm dưới ngưỡng cảnh báo
+                </p>
               </div>
             </div>
             {alerts?.low_stock.length === 0 ? (
-              <div style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)" }}>
+              <div
+                style={{
+                  padding: "32px",
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                }}
+              >
                 <div style={{ fontSize: "2rem", marginBottom: "8px" }}>✅</div>
                 Tất cả sản phẩm đều đủ tồn kho
               </div>
@@ -49,14 +72,43 @@ export default function ProductAlertsPage() {
                     {alerts?.low_stock.map((p) => (
                       <tr key={p.id}>
                         <td>
-                          <div style={{ fontWeight: "600", fontSize: "0.9rem" }}>{p.name}</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{p.barcode}</div>
+                          <div
+                            style={{ fontWeight: "600", fontSize: "0.9rem" }}
+                          >
+                            {p.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {p.barcode}
+                          </div>
                         </td>
                         <td>
-                          <span style={{ fontWeight: "700", color: "var(--danger)", fontSize: "1.1rem" }}>{p.stock_quantity}</span>
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}> {p.unit}</span>
+                          <span
+                            style={{
+                              fontWeight: "700",
+                              color: "var(--danger)",
+                              fontSize: "1.1rem",
+                            }}
+                          >
+                            {p.stock_quantity}
+                          </span>
+                          <span
+                            style={{
+                              color: "var(--text-muted)",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            {" "}
+                            {p.unit}
+                          </span>
                         </td>
-                        <td style={{ color: "var(--text-secondary)" }}>{p.reorder_level}</td>
+                        <td style={{ color: "var(--text-secondary)" }}>
+                          {p.reorder_level}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -65,19 +117,37 @@ export default function ProductAlertsPage() {
             )}
           </div>
 
-          {/* Expiring Soon Panel */}
+          {/* Expiring Soon Panel — theo TỪNG LÔ (batch), không gộp theo sản phẩm */}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-color)", display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid var(--border-color)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
               <span style={{ fontSize: "1.5rem" }}>⏰</span>
               <div>
-                <h3 style={{ fontSize: "1rem", marginBottom: "2px" }}>Sắp hết hạn / Đã hết hạn</h3>
-                <p style={{ fontSize: "0.8rem", margin: 0 }}>{alerts?.expiring_soon.length ?? 0} sản phẩm cần chú ý</p>
+                <h3 style={{ fontSize: "1rem", marginBottom: "2px" }}>
+                  Sắp hết hạn / Đã hết hạn
+                </h3>
+                <p style={{ fontSize: "0.8rem", margin: 0 }}>
+                  {alerts?.expiring_soon.length ?? 0} lô hàng cần chú ý
+                </p>
               </div>
             </div>
             {alerts?.expiring_soon.length === 0 ? (
-              <div style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)" }}>
+              <div
+                style={{
+                  padding: "32px",
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                }}
+              >
                 <div style={{ fontSize: "2rem", marginBottom: "8px" }}>✅</div>
-                Không có sản phẩm nào sắp hết hạn
+                Không có lô hàng nào sắp hết hạn
               </div>
             ) : (
               <div style={{ overflow: "auto" }}>
@@ -85,26 +155,62 @@ export default function ProductAlertsPage() {
                   <thead>
                     <tr>
                       <th>Tên sản phẩm</th>
+                      <th>Mã lô</th>
                       <th>Hạn sử dụng</th>
-                      <th>Tồn kho</th>
+                      <th>Còn lại</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {alerts?.expiring_soon.map((p) => {
-                      const isExpired = p.expiry_date ? new Date(p.expiry_date) < new Date() : false;
+                    {alerts?.expiring_soon.map((b) => {
+                      const isExpired = b.expiry_date
+                        ? new Date(b.expiry_date) < new Date()
+                        : false;
                       return (
-                        <tr key={p.id}>
+                        <tr key={b.batch_id}>
                           <td>
-                            <div style={{ fontWeight: "600", fontSize: "0.9rem" }}>{p.name}</div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{p.barcode}</div>
+                            <div
+                              style={{ fontWeight: "600", fontSize: "0.9rem" }}
+                            >
+                              {b.product_name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              {b.barcode}
+                            </div>
+                          </td>
+                          <td
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            {b.batch_code}
                           </td>
                           <td>
-                            <span className={`badge ${isExpired ? "badge-danger" : "badge-warning"}`}>
-                              {p.expiry_date ? formatDate(p.expiry_date) : "—"}
+                            <span
+                              className={`badge ${isExpired ? "badge-danger" : "badge-warning"}`}
+                            >
+                              {b.expiry_date ? formatDate(b.expiry_date) : "—"}
                             </span>
-                            {isExpired && <div style={{ fontSize: "0.7rem", color: "var(--danger)", marginTop: "4px" }}>Đã hết hạn!</div>}
+                            {isExpired && (
+                              <div
+                                style={{
+                                  fontSize: "0.7rem",
+                                  color: "var(--danger)",
+                                  marginTop: "4px",
+                                }}
+                              >
+                                Đã hết hạn!
+                              </div>
+                            )}
                           </td>
-                          <td>{p.stock_quantity} {p.unit}</td>
+                          <td>
+                            {b.quantity_remaining} {b.unit}
+                          </td>
                         </tr>
                       );
                     })}

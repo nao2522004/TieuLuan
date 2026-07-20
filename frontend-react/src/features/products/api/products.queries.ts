@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { productsApi, type GetProductsParams } from "./products.api";
 import type { CreateProductPayload, UpdateProductPayload } from "../types";
+import type { UpdateProductBatchPayload } from "../types";
 import { notify } from "@/lib/notify";
 
 export function useProductsQuery(params?: GetProductsParams) {
@@ -18,7 +19,11 @@ export function useProductDetailQuery(id?: number) {
   });
 }
 
-export function useProductBarcodeQuery(code: string, branchId?: number, enabled = false) {
+export function useProductBarcodeQuery(
+  code: string,
+  branchId?: number,
+  enabled = false,
+) {
   return useQuery({
     queryKey: ["products", "barcode", code, branchId],
     queryFn: () => productsApi.getProductByBarcode(code, branchId),
@@ -37,7 +42,8 @@ export function useProductAlertsQuery(branchId?: number) {
 export function useCreateProductMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateProductPayload) => productsApi.createProduct(payload),
+    mutationFn: (payload: CreateProductPayload) =>
+      productsApi.createProduct(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
@@ -49,12 +55,19 @@ export function useCreateProductMutation() {
 export function useUpdateProductMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: UpdateProductPayload }) =>
-      productsApi.updateProduct(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: UpdateProductPayload;
+    }) => productsApi.updateProduct(id, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
-      queryClient.invalidateQueries({ queryKey: ["products", "detail", data.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["products", "detail", data.id],
+      });
       notify.success("Cập nhật sản phẩm thành công!");
     },
   });
@@ -68,6 +81,33 @@ export function useDeleteProductMutation() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
       notify.success("Xóa sản phẩm thành công!");
+    },
+  });
+}
+
+export function useProductBatchesQuery(productId?: number) {
+  return useQuery({
+    queryKey: ["products", "batches", productId],
+    queryFn: () => productsApi.getProductBatches(productId!),
+    enabled: !!productId,
+  });
+}
+
+export function useUpdateProductBatchMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      batchId,
+      payload,
+    }: {
+      batchId: number;
+      payload: UpdateProductBatchPayload;
+    }) => productsApi.updateProductBatch(batchId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["products", "batches"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
+      notify.success("Cập nhật lô hàng thành công!");
     },
   });
 }
