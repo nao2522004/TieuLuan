@@ -21,12 +21,14 @@ import { RedisModule } from "./common/redis/redis.module";
 import { BranchesModule } from "./modules/branches/branches.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { Product } from "./modules/products/entities/product.entity";
+import { ProductBatch } from "./modules/products/entities/product-batch.entity";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { InventoryTransaction } from "./modules/inventory/entities/inventory-transaction.entity";
 import { ShiftsModule } from "./modules/shifts/shifts.module";
 import { OrdersModule } from "./modules/orders/orders.module";
 import { Order } from "./modules/orders/entities/order.entity";
 import { OrderItem } from "./modules/orders/entities/order-item.entity";
+import { OrderItemBatch } from "./modules/orders/entities/order-item-batch.entity";
 import { ZaloPayModule } from "./modules/zalopay/zalopay.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { RolesModule } from "./modules/roles/roles.module";
@@ -72,9 +74,11 @@ import { StocktakesModule } from "./modules/stocktakes/stocktakes.module";
           Return,
           Category,
           Product,
+          ProductBatch,
           InventoryTransaction,
           Order,
           OrderItem,
+          OrderItemBatch,
           Role,
           Promotion,
           ExpiryDiscountRule,

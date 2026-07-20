@@ -35,6 +35,9 @@ export class ProductDto {
   @ApiProperty({ example: "2026-12-31", nullable: true })
   expiry_date: string | null;
 
+  @ApiProperty({ example: "2026-12-31", nullable: true, description: "Hạn sử dụng gần nhất của các lô còn tồn kho" })
+  nearest_expiry_date: string | null;
+
   @ApiProperty({ example: "2026-07-11T10:00:00.000Z" })
   created_at: Date;
 

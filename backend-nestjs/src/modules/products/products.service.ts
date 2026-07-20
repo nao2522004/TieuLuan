@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { InjectRepository } from "@nestjs/typeorm";
-import { ILike, IsNull, Not, Repository } from "typeorm";
+import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
+import { DataSource, ILike, IsNull, Not, Repository } from "typeorm";
 import { Product } from "./entities/product.entity";
+import { ProductBatch } from "./entities/product-batch.entity";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { QueryProductDto } from "./dto/query-product.dto";
@@ -18,6 +19,10 @@ import { BranchesService } from "../branches/branches.service";
 import { CategoriesService } from "../categories/categories.service";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 import { ExpiryPricingService } from "../expiry-pricing/expiry-pricing.service";
+import {
+  ProductBatchDto,
+  UpdateProductBatchDto,
+} from "./dto/product-batch.dto";
 
 const CACHE_PREFIX = "products";
 
@@ -28,6 +33,10 @@ export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>,
+    @InjectRepository(ProductBatch)
+    private readonly productBatchRepository: Repository<ProductBatch>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
     private readonly configService: ConfigService,
     private readonly branchesService: BranchesService,
@@ -230,25 +239,38 @@ export class ProductsService {
       .orderBy("p.stock_quantity", "ASC")
       .getMany();
 
-    const expiringSoonRows = await this.productsRepository
-      .createQueryBuilder("p")
+    // Query trực tiếp từ product_batches để lấy lô cận hạn theo từng lô
+    // (không dùng products.expiry_date cũ, không dùng cache)
+    const expiringSoonBatches = await this.productBatchRepository
+      .createQueryBuilder("pb")
+      .innerJoin(Product, "p", "pb.product_id = p.id")
+      .select([
+        "pb.id AS batch_id",
+        "pb.product_id AS product_id",
+        "pb.batch_code AS batch_code",
+        "pb.expiry_date AS expiry_date",
+        "pb.quantity_remaining AS quantity_remaining",
+        "p.name AS product_name",
+        "p.barcode AS barcode",
+        "p.unit AS unit",
+      ])
       .where("p.branch_id = :branchId", { branchId })
       .andWhere("p.deleted_at IS NULL")
-      .andWhere("p.expiry_date IS NOT NULL")
+      .andWhere("pb.deleted_at IS NULL")
+      .andWhere("pb.quantity_remaining > 0")
+      .andWhere("pb.expiry_date IS NOT NULL")
       .andWhere(
-        "p.expiry_date <= (CURRENT_DATE + make_interval(days => :alertDays))",
+        "pb.expiry_date <= (CURRENT_DATE + make_interval(days => :alertDays))",
         { alertDays },
       )
-      .orderBy("p.expiry_date", "ASC")
-      .getMany();
+      .orderBy("pb.expiry_date", "ASC")
+      .getRawMany();
 
     return {
       low_stock: await Promise.all(
         lowStockRows.map((row) => this.toDtoWithPricing(this.toDto(row))),
       ),
-      expiring_soon: await Promise.all(
-        expiringSoonRows.map((row) => this.toDtoWithPricing(this.toDto(row))),
-      ),
+      expiring_soon: expiringSoonBatches,
     };
   }
 
@@ -289,30 +311,41 @@ export class ProductsService {
   async findExpiringSoonPaginated(
     query: QueryExpiringSoonDto,
     user: AuthUser,
-  ): Promise<{ data: ProductDto[]; meta: PaginationMeta }> {
+  ): Promise<{ data: any[]; meta: PaginationMeta }> {
     const branchId = this.resolveBranchId(user, query.branch_id);
     const alertDays = query.days ?? this.getExpiryAlertDays();
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
 
-    const qb = this.productsRepository
-      .createQueryBuilder("p")
+    // Query trực tiếp từ product_batches để lấy lô cận hạn theo từng lô
+    const qb = this.productBatchRepository
+      .createQueryBuilder("pb")
+      .innerJoin(Product, "p", "pb.product_id = p.id")
+      .select([
+        "pb.id AS batch_id",
+        "pb.product_id AS product_id",
+        "pb.batch_code AS batch_code",
+        "pb.expiry_date AS expiry_date",
+        "pb.quantity_remaining AS quantity_remaining",
+        "p.name AS product_name",
+        "p.barcode AS barcode",
+        "p.unit AS unit",
+        "p.sale_price AS sale_price",
+      ])
       .where("p.branch_id = :branchId", { branchId })
       .andWhere("p.deleted_at IS NULL")
-      .andWhere("p.expiry_date IS NOT NULL")
+      .andWhere("pb.deleted_at IS NULL")
+      .andWhere("pb.quantity_remaining > 0")
+      .andWhere("pb.expiry_date IS NOT NULL")
       .andWhere(
-        "p.expiry_date <= (CURRENT_DATE + make_interval(days => :alertDays))",
+        "pb.expiry_date <= (CURRENT_DATE + make_interval(days => :alertDays))",
         { alertDays },
       )
-      .orderBy("p.expiry_date", "ASC");
+      .orderBy("pb.expiry_date", "ASC");
 
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [rows, total] = await qb.getManyAndCount();
-
-    const data = await Promise.all(
-      rows.map((row) => this.toDtoWithPricing(row)),
-    );
+    const total = await qb.getCount();
+    const data = await qb.offset(offset).limit(limit).getRawMany();
 
     return {
       data,
@@ -393,6 +426,7 @@ export class ProductsService {
       stock_quantity: product.stockQuantity,
       reorder_level: product.reorderLevel,
       expiry_date: product.expiryDate,
+      nearest_expiry_date: product.nearestExpiryDate ?? null,
       created_at: product.createdAt,
       updated_at: product.updatedAt,
     };
@@ -404,9 +438,10 @@ export class ProductsService {
     const base: ProductDtoWithoutPricing =
       "createdAt" in product ? this.toDto(product as Product) : product;
 
+    // Dùng nearest_expiry_date để tính giá cận hạn chính xác theo lô
     const pricing = await this.expiryPricingService.computeEffectivePrice(
       base.sale_price,
-      base.expiry_date,
+      base.nearest_expiry_date ?? null,
     );
 
     return {
@@ -451,5 +486,90 @@ export class ProductsService {
     if (keys.length > 0) {
       await this.redisService.del(...keys);
     }
+  }
+  // ─── Batch management ────────────────────────────────────────────────────────
+
+  async findBatchesByProduct(
+    productId: number,
+  ): Promise<{ data: ProductBatchDto[] }> {
+    await this.findActiveOrThrow(productId);
+
+    const batches = await this.productBatchRepository.find({
+      where: { productId, deletedAt: IsNull() },
+      order: { expiryDate: "ASC", id: "ASC" },
+    });
+
+    return {
+      data: batches.map((b) => ({
+        id: b.id,
+        product_id: b.productId,
+        batch_code: b.batchCode,
+        expiry_date: b.expiryDate ?? null,
+        quantity_received: b.quantityReceived,
+        quantity_remaining: b.quantityRemaining,
+        unit_cost: b.unitCost ?? null,
+        received_at: b.receivedAt,
+        created_by: b.createdBy ?? null,
+      })),
+    };
+  }
+
+  async updateBatch(
+    batchId: number,
+    dto: UpdateProductBatchDto,
+  ): Promise<{ data: ProductBatchDto }> {
+    const batch = await this.productBatchRepository.findOne({
+      where: { id: batchId, deletedAt: IsNull() },
+    });
+
+    if (!batch) {
+      throw new BusinessException(
+        "BATCH_NOT_FOUND",
+        404,
+        "Không tìm thấy lô hàng.",
+      );
+    }
+
+    // Áp dụng Fallback thông minh: ưu tiên DTO → giữ nguyên nếu trống
+    if (dto.batch_code !== undefined && dto.batch_code.trim() !== "") {
+      batch.batchCode = dto.batch_code.trim();
+    }
+    if (dto.expiry_date !== undefined) {
+      batch.expiryDate = dto.expiry_date ?? null;
+    }
+    if (dto.unit_cost !== undefined) {
+      batch.unitCost = dto.unit_cost ?? null;
+    }
+
+    const saved = await this.productBatchRepository.save(batch);
+
+    // Cập nhật lại nearestExpiryDate trên sản phẩm sau khi sửa lô
+    await this.dataSource.query(
+      `UPDATE products
+       SET nearest_expiry_date = (
+         SELECT MIN(expiry_date)
+         FROM product_batches
+         WHERE product_id = $1
+           AND quantity_remaining > 0
+           AND expiry_date IS NOT NULL
+           AND deleted_at IS NULL
+       )
+       WHERE id = $1`,
+      [saved.productId],
+    );
+
+    return {
+      data: {
+        id: saved.id,
+        product_id: saved.productId,
+        batch_code: saved.batchCode,
+        expiry_date: saved.expiryDate ?? null,
+        quantity_received: saved.quantityReceived,
+        quantity_remaining: saved.quantityRemaining,
+        unit_cost: saved.unitCost ?? null,
+        received_at: saved.receivedAt,
+        created_by: saved.createdBy ?? null,
+      },
+    };
   }
 }

@@ -9,6 +9,7 @@ import { QueryInventoryTransactionsDto } from "./dto/query-inventory-transaction
 import { InventoryTransactionDto } from "./dto/inventory-transaction-response.dto";
 import { BusinessException } from "../../common/exceptions/business.exception";
 import { ProductsService } from "../products/products.service";
+import { BatchConsumptionService } from "../products/batch-consumption.service";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
 
@@ -20,6 +21,7 @@ export class InventoryService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly productsService: ProductsService,
+    private readonly batchConsumptionService: BatchConsumptionService,
   ) {}
 
   async createInboundTransaction(
@@ -52,8 +54,16 @@ export class InventoryService {
         );
       }
 
-      product.stockQuantity += dto.quantity;
-      await productRepo.save(product);
+      // Gọi service nhận lô hàng mới
+      const batch = await this.batchConsumptionService.receiveBatch(
+        manager,
+        dto.product_id,
+        dto.quantity,
+        dto.expiry_date ?? null,
+        dto.unit_cost ?? 0,
+        user.id,
+        dto.batch_code,
+      );
 
       const entity = manager.getRepository(InventoryTransaction).create({
         productId: dto.product_id,
@@ -63,6 +73,7 @@ export class InventoryService {
         quantity: dto.quantity,
         unitCost: dto.unit_cost ?? null,
         note: dto.note ?? null,
+        batchId: batch.id,
         createdBy: user.id,
       });
 
@@ -105,30 +116,29 @@ export class InventoryService {
         );
       }
 
-      // Kiểm tra chặn tồn kho âm ở tầng Service
-      if (product.stockQuantity < dto.quantity) {
-        throw new BusinessException(
-          "INVENTORY_INSUFFICIENT",
-          400,
-          "Không đủ tồn kho để thực hiện thao tác.",
-        );
-      }
+      // Trừ kho theo nguyên tắc FEFO qua các lô
+      const consumed = await this.batchConsumptionService.consumeFefo(
+        manager,
+        dto.product_id,
+        dto.quantity,
+      );
 
-      product.stockQuantity -= dto.quantity;
-      await productRepo.save(product);
+      const txs = consumed.map((c) =>
+        manager.getRepository(InventoryTransaction).create({
+          productId: dto.product_id,
+          type: "OUT",
+          source: "ADJUSTMENT",
+          reason: dto.reason,
+          quantity: c.quantityTaken,
+          unitCost: null,
+          note: dto.note ?? null,
+          batchId: c.batchId,
+          createdBy: user.id,
+        }),
+      );
 
-      const entity = manager.getRepository(InventoryTransaction).create({
-        productId: dto.product_id,
-        type: "OUT",
-        source: "ADJUSTMENT",
-        reason: dto.reason,
-        quantity: dto.quantity,
-        unitCost: null,
-        note: dto.note ?? null,
-        createdBy: user.id,
-      });
-
-      return manager.getRepository(InventoryTransaction).save(entity);
+      const savedTxs = await manager.getRepository(InventoryTransaction).save(txs);
+      return savedTxs[0];
     });
 
     await this.productsService.evictCacheForProduct(dto.product_id);
@@ -206,6 +216,7 @@ export class InventoryService {
       quantity: tx.quantity,
       unit_cost: tx.unitCost != null ? Number(tx.unitCost) : null,
       note: tx.note,
+      batch_id: tx.batchId != null ? Number(tx.batchId) : null,
       created_by: tx.createdBy,
       created_at: tx.createdAt,
     };

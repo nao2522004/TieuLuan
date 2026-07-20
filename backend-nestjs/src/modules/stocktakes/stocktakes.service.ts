@@ -13,6 +13,7 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { ProductsService } from "../products/products.service";
+import { BatchConsumptionService } from "../products/batch-consumption.service";
 
 @Injectable()
 export class StocktakesService {
@@ -26,6 +27,7 @@ export class StocktakesService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly productsService: ProductsService,
+    private readonly batchConsumptionService: BatchConsumptionService,
   ) {}
 
   async create(dto: CreateStocktakeDto, user: AuthUser): Promise<StocktakeDto> {
@@ -184,32 +186,50 @@ export class StocktakesService {
       });
 
       for (const item of items) {
-        const product = await productRepo
-          .createQueryBuilder("p")
-          .setLock("pessimistic_write")
-          .where("p.id = :id", { id: item.productId })
-          .andWhere("p.deleted_at IS NULL")
-          .getOne();
-
-        if (!product) {
-          throw new BusinessException(
-            "PRODUCT_NOT_FOUND",
-            400,
-            `Sản phẩm ID ${item.productId} không tồn tại hoặc đã bị xóa.`,
+        if (item.difference < 0) {
+          // Thiếu hàng -> trừ kho theo FEFO
+          const consumed = await this.batchConsumptionService.consumeFefo(
+            manager,
+            item.productId,
+            Math.abs(item.difference),
           );
-        }
 
-        product.stockQuantity = item.countedQuantity;
-        await productRepo.save(product);
+          for (const c of consumed) {
+            const tx = txRepo.create({
+              productId: item.productId,
+              type: "OUT",
+              source: "STOCKTAKE",
+              reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
+              quantity: c.quantityTaken,
+              unitCost: null,
+              batchId: c.batchId,
+              note: stocktake.note
+                ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
+                : `Phiên kiểm kê #${stocktake.id}`,
+              createdBy: user.id,
+            });
+            await txRepo.save(tx);
+          }
+        } else if (item.difference > 0) {
+          // Thừa hàng -> tạo lô mới không hạn dùng
+          const batch = await this.batchConsumptionService.receiveBatch(
+            manager,
+            item.productId,
+            item.difference,
+            null,
+            0,
+            user.id,
+            `LÔ-KIỂMKÊ-${stocktake.id}-${item.productId}`,
+          );
 
-        if (item.difference !== 0) {
           const tx = txRepo.create({
             productId: item.productId,
-            type: item.difference > 0 ? "IN" : "OUT",
+            type: "IN",
             source: "STOCKTAKE",
             reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
-            quantity: Math.abs(item.difference),
+            quantity: item.difference,
             unitCost: null,
+            batchId: batch.id,
             note: stocktake.note
               ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
               : `Phiên kiểm kê #${stocktake.id}`,

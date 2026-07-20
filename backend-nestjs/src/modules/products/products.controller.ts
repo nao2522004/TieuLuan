@@ -35,6 +35,14 @@ import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { ParseIntIdPipe } from "../../common/pipes/parse-int-id.pipe";
+import {
+  ProductBatchListResponseDto,
+  UpdateProductBatchDto,
+} from "./dto/product-batch.dto";
+
+// ──────────────────────────────────────────────────────────────────
+// Products Controller  –  /products
+// ──────────────────────────────────────────────────────────────────
 
 @ApiTags("products")
 @ApiBearerAuth()
@@ -54,7 +62,7 @@ export class ProductsController {
   @Get("alerts")
   @ApiOperation({
     summary:
-      "Cảnh báo tồn kho thấp (stock_quantity <= reorder_level) và sản phẩm " +
+      "Cảnh báo tồn kho thấp (stock_quantity <= reorder_level) và lô " +
       "sắp hết hạn (expiry_date trong X ngày tới, X = PRODUCT_EXPIRY_ALERT_DAYS). " +
       "Luôn query trực tiếp DB, không dùng cache.",
   })
@@ -105,7 +113,7 @@ export class ProductsController {
   @Get("expiring-soon")
   @ApiOperation({
     summary:
-      "Danh sách sản phẩm sắp hết hạn. Luôn query trực tiếp DB, không dùng cache.",
+      "Danh sách lô hàng sắp hết hạn (query trực tiếp product_batches). Luôn query trực tiếp DB, không dùng cache.",
   })
   @ApiResponse({ status: 200, type: PaginatedProductResponseDto })
   @ApiResponse({
@@ -115,6 +123,16 @@ export class ProductsController {
   })
   getExpiringSoon(@Query() query: QueryExpiringSoonDto, @Req() req: Request) {
     return this.productsService.findExpiringSoonPaginated(query, req.user!);
+  }
+
+  @Get(":id/batches")
+  @ApiOperation({
+    summary: "Danh sách lô hàng của sản phẩm, sắp xếp FEFO (hạn sớm lên trước)",
+  })
+  @ApiResponse({ status: 200, type: ProductBatchListResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  getProductBatches(@Param("id", ParseIntIdPipe) id: number) {
+    return this.productsService.findBatchesByProduct(id);
   }
 
   @Get(":id")
@@ -164,5 +182,33 @@ export class ProductsController {
   @ApiResponse({ status: 404, type: ApiErrorResponse })
   remove(@Param("id", ParseIntIdPipe) id: number) {
     return this.productsService.remove(id);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Product-Batches Controller  –  /product-batches
+// ──────────────────────────────────────────────────────────────────
+
+@ApiTags("product-batches")
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller("product-batches")
+export class ProductBatchesController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Patch(":id")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  @ApiOperation({
+    summary:
+      "Cập nhật thông tin lô hàng (chỉ admin). Scope cho phép: batch_code, expiry_date, unit_cost.",
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  updateBatch(
+    @Param("id", ParseIntIdPipe) id: number,
+    @Body() dto: UpdateProductBatchDto,
+  ) {
+    return this.productsService.updateBatch(id, dto);
   }
 }

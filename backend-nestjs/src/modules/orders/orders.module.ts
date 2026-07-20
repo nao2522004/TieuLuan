@@ -3,6 +3,7 @@ import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Order } from "./entities/order.entity";
 import { OrderItem } from "./entities/order-item.entity";
+import { OrderItemBatch } from "./entities/order-item-batch.entity";
 import { Product } from "../products/entities/product.entity";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
@@ -17,7 +18,7 @@ import { ExpiryPricingModule } from "../expiry-pricing/expiry-pricing.module";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderItem, Product]),
+    TypeOrmModule.forFeature([Order, OrderItem, OrderItemBatch, Product]),
     JwtModule.register({}),
     UsersModule,
     ProductsModule,

@@ -43,4 +43,15 @@ export class CreateInventoryTransactionDto {
   @IsString()
   @MaxLength(255, { message: "tối đa 255 ký tự" })
   note?: string;
+
+  @ApiPropertyOptional({ example: "2026-12-31", description: "Hạn sử dụng của lô hàng (YYYY-MM-DD)" })
+  @IsOptional()
+  @IsString({ message: "phải là chuỗi định dạng YYYY-MM-DD" })
+  expiry_date?: string;
+
+  @ApiPropertyOptional({ example: "LÔ-123", description: "Mã lô tự chọn" })
+  @IsOptional()
+  @IsString({ message: "phải là chuỗi" })
+  @MaxLength(100, { message: "tối đa 100 ký tự" })
+  batch_code?: string;
 }

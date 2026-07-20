@@ -59,6 +59,17 @@ export class InventoryTransaction {
   note: string | null;
 
   @Column({
+    name: "batch_id",
+    type: "bigint",
+    nullable: true,
+    transformer: {
+      to: (value) => value,
+      from: (value) => (value ? parseInt(value, 10) : null),
+    },
+  })
+  batchId: number | null;
+
+  @Column({
     name: "created_by",
     type: "bigint",
     transformer: {

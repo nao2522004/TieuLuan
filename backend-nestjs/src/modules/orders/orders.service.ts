@@ -18,6 +18,8 @@ import * as QRCode from "qrcode";
 import { Logger } from "@nestjs/common";
 import { PromotionsService } from "../promotions/promotions.service";
 import { ExpiryPricingService } from "../expiry-pricing/expiry-pricing.service";
+import { BatchConsumptionService } from "../products/batch-consumption.service";
+import { OrderItemBatch } from "./entities/order-item-batch.entity";
 
 interface LineItem {
   productId: number;
@@ -26,6 +28,7 @@ interface LineItem {
   unitPrice: number;
   originalUnitPrice: number | null;
   expiryDiscountPercent: number | null;
+  consumedBatches: { batchId: number; quantityTaken: number }[];
 }
 
 interface QrResult {
@@ -50,6 +53,7 @@ export class OrdersService {
     private readonly zaloPayService: ZaloPayService,
     private readonly promotionsService: PromotionsService,
     private readonly expiryPricingService: ExpiryPricingService,
+    private readonly batchConsumptionService: BatchConsumptionService,
   ) {}
 
   async create(dto: CreateOrderDto, user: AuthUser): Promise<OrderDataDto> {
@@ -100,15 +104,13 @@ export class OrdersService {
         const lineItems: LineItem[] = [];
 
         for (const item of sortedItems) {
-          const product = await productRepo
-            .createQueryBuilder("p")
-            .setLock("pessimistic_write")
-            .where("p.id = :id", { id: item.product_id })
-            .andWhere("p.branch_id = :branchId", {
+          const product = await productRepo.findOne({
+            where: {
+              id: item.product_id,
               branchId: openShift.branchId,
-            })
-            .andWhere("p.deleted_at IS NULL")
-            .getOne();
+              deletedAt: IsNull(),
+            },
+          });
 
           if (!product) {
             throw new BusinessException(
@@ -118,20 +120,21 @@ export class OrdersService {
             );
           }
 
-          if (product.stockQuantity < item.quantity) {
-            throw new BusinessException(
-              "INVENTORY_INSUFFICIENT",
-              409,
-              `Sản phẩm "${product.name}" không đủ tồn kho (còn ${product.stockQuantity}, cần ${item.quantity}).`,
-            );
-          }
+          // Trừ kho theo nguyên tắc FEFO qua các lô
+          const consumedBatches = await this.batchConsumptionService.consumeFefo(
+            manager,
+            item.product_id,
+            item.quantity,
+          );
 
-          product.stockQuantity -= item.quantity;
-          await productRepo.save(product);
+          // Lấy lại thông tin sản phẩm sau khi đã được cập nhật nearestExpiryDate trong consumeFefo
+          const updatedProduct = await productRepo.findOne({
+            where: { id: item.product_id },
+          });
 
           const pricing = await this.expiryPricingService.computeEffectivePrice(
             Number(product.salePrice),
-            product.expiryDate,
+            updatedProduct ? updatedProduct.nearestExpiryDate : null,
           );
 
           lineItems.push({
@@ -145,6 +148,7 @@ export class OrdersService {
             expiryDiscountPercent: pricing.is_expiry_discount_applied
               ? pricing.discount_percent
               : null,
+            consumedBatches,
           });
         }
 
@@ -204,8 +208,11 @@ export class OrdersService {
         const savedOrder = await orderRepo.save(orderEntity);
 
         const itemRepo = manager.getRepository(OrderItem);
-        const itemEntities = lineItems.map((li) =>
-          itemRepo.create({
+        const batchRepo = manager.getRepository(OrderItemBatch);
+        const savedItems: OrderItem[] = [];
+
+        for (const li of lineItems) {
+          const itemEntity = itemRepo.create({
             orderId: savedOrder.id,
             productId: li.productId,
             productName: li.productName,
@@ -213,9 +220,19 @@ export class OrdersService {
             unitPrice: li.unitPrice,
             originalUnitPrice: li.originalUnitPrice,
             expiryDiscountPercent: li.expiryDiscountPercent,
-          }),
-        );
-        const savedItems = await itemRepo.save(itemEntities);
+          });
+          const savedItem = await itemRepo.save(itemEntity);
+          savedItems.push(savedItem);
+
+          const orderItemBatches = li.consumedBatches.map((cb) =>
+            batchRepo.create({
+              orderItemId: savedItem.id,
+              batchId: cb.batchId,
+              quantityTaken: cb.quantityTaken,
+            }),
+          );
+          await batchRepo.save(orderItemBatches);
+        }
 
         return { order: savedOrder, items: savedItems };
       },
@@ -270,16 +287,9 @@ export class OrdersService {
         // Hoàn lại kho và hủy đơn nếu ZaloPay API lỗi
         await this.dataSource.transaction(async (manager) => {
           const orderRepo = manager.getRepository(Order);
-          const productRepo = manager.getRepository(Product);
 
           for (const item of items) {
-            const product = await productRepo.findOne({
-              where: { id: item.productId },
-            });
-            if (product) {
-              product.stockQuantity += item.quantity;
-              await productRepo.save(product);
-            }
+            await this.batchConsumptionService.restoreExactBatches(manager, item.id);
           }
 
           order.status = "cancelled";
@@ -511,7 +521,6 @@ export class OrdersService {
       async (manager) => {
         const orderRepo = manager.getRepository(Order);
         const itemRepo = manager.getRepository(OrderItem);
-        const productRepo = manager.getRepository(Product);
 
         const lockedOrder = await orderRepo
           .createQueryBuilder("o")
@@ -540,15 +549,7 @@ export class OrdersService {
         );
 
         for (const item of sortedItems) {
-          const product = await productRepo
-            .createQueryBuilder("p")
-            .setLock("pessimistic_write")
-            .where("p.id = :id", { id: item.productId })
-            .getOne();
-          if (product) {
-            product.stockQuantity += item.quantity;
-            await productRepo.save(product);
-          }
+          await this.batchConsumptionService.restoreExactBatches(manager, item.id);
         }
 
         lockedOrder.status = "cancelled";

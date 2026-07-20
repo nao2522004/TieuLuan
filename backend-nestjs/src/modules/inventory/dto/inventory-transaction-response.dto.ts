@@ -37,6 +37,9 @@ export class InventoryTransactionDto {
   @ApiProperty({ example: 1, description: "ID user thực hiện giao dịch" })
   created_by: number;
 
+  @ApiProperty({ example: 1, nullable: true, description: "ID của lô hàng liên quan" })
+  batch_id: number | null;
+
   @ApiProperty({ example: "2026-07-13T10:00:00.000Z" })
   created_at: Date;
 }
