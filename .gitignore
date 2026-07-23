@@ -6,6 +6,16 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
+# Python virtual environments & bytecode
+venv/
+.venv/
+**/venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+**/*.py[cod]
+
 # Build artifacts
 dist/
 **/dist/
@@ -15,6 +25,8 @@ out/
 **/.nest/
 *.tsbuildinfo
 **/*.tsbuildinfo
+*.egg-info/
+**/*.egg-info/
 
 # Environment files (NEVER commit secrets!)
 .env
@@ -36,6 +48,7 @@ yarn-error.log*
 pgdata_nestjs/
 pgdata_fastapi/
 pgdata/
+**/pgdata_*
 
 # OS/Editor files
 .DS_Store
@@ -44,6 +57,9 @@ pgdata/
 *.swp
 *.swo
 
-# Testing
+# Testing & Coverage
 coverage/
 .nyc_output/
+.pytest_cache/
+**/.pytest_cache/
+.coverage
