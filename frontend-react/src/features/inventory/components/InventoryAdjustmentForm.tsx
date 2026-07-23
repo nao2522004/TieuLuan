@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useBranchesQuery } from "@/features/branches/api/branches.queries";
+import { useProductBatchesQuery } from "@/features/products/api/products.queries";
 import type { Product } from "@/features/products/types";
 import type { CreateAdjustmentPayload } from "../types";
 import { ProductPicker } from "../../../components/ProductPicker";
@@ -10,6 +11,7 @@ import { ProductPicker } from "../../../components/ProductPicker";
 const schema = z.object({
   branch_id: z.coerce.number().min(1, "Vui lòng chọn chi nhánh"),
   quantity: z.coerce.number().int("Phải là số nguyên").positive("Phải > 0"),
+  batch_id: z.coerce.number().optional().or(z.literal("")),
   reason: z
     .string()
     .min(1, "Lý do không được để trống")
@@ -42,6 +44,9 @@ export function InventoryAdjustmentForm({
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
   const [productError, setProductError] = useState<string | null>(null);
 
+  const { data: batches = [] } = useProductBatchesQuery(selectedProduct?.id);
+  const activeBatches = batches.filter((b) => b.quantity_remaining > 0);
+
   const {
     register,
     handleSubmit,
@@ -53,6 +58,7 @@ export function InventoryAdjustmentForm({
     defaultValues: {
       branch_id: undefined as unknown as number,
       quantity: 1,
+      batch_id: "",
       reason: "",
       note: "",
     },
@@ -75,6 +81,7 @@ export function InventoryAdjustmentForm({
       quantity: values.quantity,
       reason: values.reason,
       note: values.note || undefined,
+      batch_id: values.batch_id ? Number(values.batch_id) : undefined,
     });
   };
 
@@ -118,31 +125,53 @@ export function InventoryAdjustmentForm({
         {productError && <p className="form-error">{productError}</p>}
       </div>
 
-      <div className="form-group">
-        <label htmlFor="quantity">Số lượng hao hụt/hủy *</label>
-        <input
-          id="quantity"
-          type="number"
-          min={1}
-          className="form-control"
-          {...register("quantity")}
-        />
-        {selectedProduct && (
-          <p
-            style={{
-              fontSize: "0.78rem",
-              marginTop: 4,
-              color: overStock ? "var(--danger)" : "var(--text-muted)",
-            }}
+      <div className="grid-cols-2">
+        <div className="form-group">
+          <label htmlFor="quantity">Số lượng hao hụt/hủy *</label>
+          <input
+            id="quantity"
+            type="number"
+            min={1}
+            className="form-control"
+            {...register("quantity")}
+          />
+          {selectedProduct && (
+            <p
+              style={{
+                fontSize: "0.78rem",
+                marginTop: 4,
+                color: overStock ? "var(--danger)" : "var(--text-muted)",
+              }}
+            >
+              Tồn kho hiện tại: {selectedProduct.stock_quantity}{" "}
+              {selectedProduct.unit}
+              {overStock && " — vượt quá tồn kho, hệ thống sẽ từ chối khi lưu."}
+            </p>
+          )}
+          {errors.quantity && (
+            <p className="form-error">{errors.quantity.message}</p>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="batch_id">Lô hàng trừ kho (tùy chọn)</label>
+          <select
+            id="batch_id"
+            className="form-control"
+            {...register("batch_id")}
+            disabled={!selectedProduct}
           >
-            Tồn kho hiện tại: {selectedProduct.stock_quantity}{" "}
-            {selectedProduct.unit}
-            {overStock && " — vượt quá tồn kho, hệ thống sẽ từ chối khi lưu."}
+            <option value="">-- Tự động trừ theo lô gần nhất (FEFO) --</option>
+            {activeBatches.map((b) => (
+              <option key={b.id} value={b.id}>
+                Lô {b.batch_code} (Tồn: {b.quantity_remaining} {selectedProduct?.unit || ""} — HSD: {b.expiry_date ? new Date(b.expiry_date).toLocaleDateString("vi-VN") : "Không có"})
+              </option>
+            ))}
+          </select>
+          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 4 }}>
+            Bỏ trống nếu muốn tự động trừ lô cận hạn nhất
           </p>
-        )}
-        {errors.quantity && (
-          <p className="form-error">{errors.quantity.message}</p>
-        )}
+        </div>
       </div>
 
       <div className="form-group">

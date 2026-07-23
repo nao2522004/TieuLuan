@@ -87,12 +87,15 @@ export class AuthService {
       10,
     );
     const roles = (user.roles ?? []).map((r) => r.code);
+    const pwdHash = user.passwordHash ? user.passwordHash.slice(-10) : undefined;
+
     return this.jwtService.sign(
       {
         sub: user.id,
         email: user.email,
         roles,
         branchId: user.branchId ?? null,
+        pwdHash,
       },
       {
         secret: this.configService.get<string>("JWT_ACCESS_SECRET"),

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useShiftStore } from "@/features/shifts/stores/shift.store";
 import { useProductBarcodeQuery } from "@/features/products/api/products.queries";
 import {
@@ -6,6 +7,7 @@ import {
   useConfirmPaymentMutation,
 } from "../api/orders.queries";
 import type { CartItem, Order } from "../types";
+import type { Product } from "@/features/products/types";
 import { notify } from "@/lib/notify";
 import { ordersApi } from "../api/orders.api";
 import { productsApi } from "@/features/products/api/products.api";
@@ -19,6 +21,7 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [fetchBarcode, setFetchBarcode] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [promotionCode, setPromotionCode] = useState("");
   const [promotionMode, setPromotionMode] = useState<
@@ -29,6 +32,7 @@ export default function POSPage() {
   >("cash");
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [previewDiscount, setPreviewDiscount] = useState(0);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const validatePromoMutation = useValidatePromotionMutation();
@@ -37,6 +41,50 @@ export default function POSPage() {
   const { data: branchDetail } = useBranchDetailQuery(
     completedOrder?.branch_id,
   );
+
+  const trimmedSearch = barcodeInput.trim();
+  const { data: searchResultsData, isFetching: isSearching } = useQuery({
+    queryKey: ["products", "pos-search", activeShift?.branch_id, trimmedSearch],
+    queryFn: () =>
+      productsApi.getProducts({
+        branch_id: activeShift?.branch_id,
+        search: trimmedSearch,
+        limit: 8,
+      }),
+    enabled: !!activeShift?.branch_id && trimmedSearch.length > 0,
+  });
+  const searchResults = searchResultsData?.data ?? [];
+
+  const handleSelectProduct = (prod: Product) => {
+    setCart((prev) => {
+      const exists = prev.find((i) => i.product_id === prod.id);
+      if (exists) {
+        return prev.map((i) =>
+          i.product_id === prod.id
+            ? { ...i, quantity: i.quantity + 1 }
+            : i,
+        );
+      }
+      return [
+        ...prev,
+        {
+          product_id: prod.id,
+          product_name: prod.name,
+          barcode: prod.barcode || "",
+          unit: prod.unit,
+          unit_price: prod.effective_price,
+          original_price: prod.sale_price,
+          discount_percent: prod.discount_percent,
+          quantity: 1,
+        },
+      ];
+    });
+    setBarcodeInput("");
+    setShowSuggestions(false);
+    setPreviewDiscount(0);
+    setPreviewError(null);
+    setTimeout(() => barcodeRef.current?.focus(), 50);
+  };
 
   const handlePrint = () => {
     window.print();
@@ -85,13 +133,28 @@ export default function POSPage() {
 
   useEffect(() => {
     if (isScanError && fetchBarcode) {
-      notify.error(`Không tìm thấy sản phẩm với barcode: ${fetchBarcode}`);
+      notify.error(`Không tìm thấy sản phẩm với từ khóa/mã vạch: ${fetchBarcode}`);
       setFetchBarcode("");
     }
   }, [isScanError, fetchBarcode]);
 
+  // Đóng dropdown gợi ý khi click ra ngoài vùng tìm kiếm
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleBarcodeSearch = () => {
     if (!barcodeInput.trim()) return;
+    setShowSuggestions(false);
     setFetchBarcode(barcodeInput.trim());
     setBarcodeInput("");
     setTimeout(() => barcodeRef.current?.focus(), 50);
@@ -263,29 +326,121 @@ export default function POSPage() {
       <div className="pos-grid">
         {/* Left: Product Search & Cart */}
         <div className="pos-left">
-          <div className="card" style={{ marginBottom: "16px" }}>
+          <div className="card" style={{ marginBottom: "16px", overflow: "visible" }}>
             <h3 style={{ marginBottom: "12px", fontSize: "1rem" }}>
-              🔍 Tìm sản phẩm theo mã vạch
+              🔍 Tìm sản phẩm theo tên hoặc mã vạch
             </h3>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <input
-                ref={barcodeRef}
-                type="text"
-                className="form-control"
-                placeholder="Nhập hoặc quét barcode, nhấn Enter..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleBarcodeSearch()}
-                disabled={!activeShift}
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handleBarcodeSearch}
-                disabled={!activeShift || isScanLoading}
-                style={{ flexShrink: 0 }}
-              >
-                {isScanLoading ? "⏳" : "Tìm"}
-              </button>
+            <div ref={searchContainerRef} style={{ position: "relative" }}>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <input
+                  ref={barcodeRef}
+                  type="text"
+                  className="form-control"
+                  placeholder="Gõ tên sản phẩm hoặc quét mã vạch..."
+                  value={barcodeInput}
+                  onChange={(e) => {
+                    setBarcodeInput(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setShowSuggestions(false);
+                      handleBarcodeSearch();
+                    } else if (e.key === "Escape") {
+                      setShowSuggestions(false);
+                    }
+                  }}
+                  disabled={!activeShift}
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setShowSuggestions(false);
+                    handleBarcodeSearch();
+                  }}
+                  disabled={!activeShift || isScanLoading}
+                  style={{ flexShrink: 0 }}
+                >
+                  {isScanLoading ? "⏳" : "Tìm"}
+                </button>
+              </div>
+
+              {/* Dropdown Gợi ý real-time */}
+              {showSuggestions && trimmedSearch && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 100,
+                    marginTop: 6,
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "var(--radius-sm)",
+                    maxHeight: 320,
+                    overflowY: "auto",
+                    boxShadow: "var(--shadow-lg)",
+                  }}
+                >
+                  {isSearching ? (
+                    <div style={{ padding: 12, fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                      ⏳ Đang tìm sản phẩm...
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div style={{ padding: 12, fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                      Không thấy sản phẩm nào khớp. Nhấn Enter để quét mã.
+                    </div>
+                  ) : (
+                    searchResults.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectProduct(p)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "10px 14px",
+                          background: "none",
+                          border: "none",
+                          borderBottom: "1px solid var(--border-color)",
+                          color: "var(--text-primary)",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "rgba(99,102,241,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "none";
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                            {p.name}
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                            Mã vạch: {p.barcode} · Tồn: <strong>{p.stock_quantity}</strong> {p.unit}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontWeight: 700, color: "var(--primary-color)", fontSize: "0.95rem" }}>
+                            {p.effective_price.toLocaleString("vi-VN")} đ
+                          </div>
+                          {p.is_expiry_discount_applied && (
+                            <span style={{ fontSize: "0.7rem", color: "var(--warning-color)", fontWeight: 600 }}>
+                              Giảm cận hạn (-{p.discount_percent}%)
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -816,6 +971,57 @@ export default function POSPage() {
               </h3>
             </div>
             <div className="modal-content" style={{ textAlign: "center" }}>
+              {/* Mã QR ZaloPay khi đang chờ thanh toán */}
+              {completedOrder.payment_method === "transfer" &&
+                completedOrder.payment_status === "pending" &&
+                completedOrder.qr_code && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "var(--text-secondary)",
+                        margin: 0,
+                      }}
+                    >
+                      Dùng ZaloPay quét mã bên dưới để thanh toán
+                    </p>
+                    <img
+                      src={completedOrder.qr_code}
+                      alt="ZaloPay QR Code"
+                      style={{
+                        width: 220,
+                        height: 220,
+                        borderRadius: 12,
+                        border: "4px solid var(--border-color)",
+                        background: "#fff",
+                        padding: 6,
+                      }}
+                    />
+                    {completedOrder.qr_content && (
+                      <a
+                        href={completedOrder.qr_content}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "var(--primary)",
+                          textDecoration: "underline",
+                        }}
+                      >
+                        Hoặc mở ZaloPay trên điện thoại
+                      </a>
+                    )}
+                  </div>
+                )}
+
               <div
                 style={{
                   marginBottom: "16px",
@@ -828,6 +1034,7 @@ export default function POSPage() {
                 <p style={{ marginBottom: 12 }}>
                   <strong>Mã đơn hàng:</strong> #{completedOrder.id}
                 </p>
+
 
                 {(() => {
                   const grossOriginal = completedOrder.items.reduce(

@@ -19,6 +19,7 @@ import {
 import { ShiftsService } from "./shifts.service";
 import { OpenShiftDto } from "./dto/open-shift.dto";
 import { CloseShiftDto } from "./dto/close-shift.dto";
+import { UpdateClosingDto } from "./dto/update-closing.dto";
 import { QueryShiftDto } from "./dto/query-shift.dto";
 import {
   ShiftResponseDto,
@@ -80,6 +81,22 @@ export class ShiftsController {
     @Req() req: Request,
   ) {
     return this.shiftsService.close(id, dto, req.user!);
+  }
+
+  @Patch(":id/correction")
+  @ApiOperation({
+    summary:
+      "Chỉnh sửa thông tin ca đã đóng (tiền đếm thực tế closing_cash, ghi chú) dành cho Admin hoặc Trưởng ca mở ca.",
+  })
+  @ApiResponse({ status: 200, type: ShiftResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponse })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  correctClosed(
+    @Param("id", ParseIntIdPipe) id: number,
+    @Body() dto: UpdateClosingDto,
+    @Req() req: Request,
+  ) {
+    return this.shiftsService.correctClosed(id, dto, req.user!);
   }
 
   @Get()

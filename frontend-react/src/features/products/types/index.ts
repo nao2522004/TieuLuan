@@ -50,7 +50,7 @@ export interface ProductAlerts {
 export interface CreateProductPayload {
   branch_id: number;
   category_id: number;
-  barcode: string;
+  barcode?: string;
   name: string;
   unit: string;
   cost_price: number;

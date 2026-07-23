@@ -39,4 +39,11 @@ export class CreateAdjustmentDto {
   @IsString({ message: "phải là chuỗi" })
   @MaxLength(255, { message: "tối đa 255 ký tự" })
   note?: string;
+
+  @ApiPropertyOptional({ example: 101, description: "ID lô hàng cụ thể cần trừ (tùy chọn). Nếu không truyền sẽ tự động trừ theo FEFO" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: "phải là số nguyên" })
+  @IsPositive({ message: "phải là số nguyên dương" })
+  batch_id?: number;
 }

@@ -142,6 +142,17 @@ export class UsersService {
     if (query.is_active !== undefined) {
       qb.andWhere("u.is_active = :isActive", { isActive: query.is_active });
     }
+    if (query.search) {
+      const trimmed = query.search.trim();
+      const numericId = parseInt(trimmed, 10);
+      if (!isNaN(numericId) && String(numericId) === trimmed) {
+        qb.andWhere("u.id = :userId", { userId: numericId });
+      } else {
+        qb.andWhere("u.full_name ILIKE :search", {
+          search: `%${trimmed}%`,
+        });
+      }
+    }
 
     qb.orderBy("u.id", "ASC")
       .skip((page - 1) * limit)
@@ -266,7 +277,18 @@ export class UsersService {
       user.isActive = dto.is_active;
     }
 
-    await this.usersRepository.save(user);
+    // Dùng update() thay save() để tránh TypeORM sync lại bảng junction user_roles
+    const scalarUpdate: Partial<{
+      fullName: string;
+      branchId: number;
+      isActive: boolean;
+    }> = {};
+    if (dto.full_name !== undefined) scalarUpdate.fullName = dto.full_name;
+    if (dto.branch_id !== undefined) scalarUpdate.branchId = dto.branch_id;
+    if (dto.is_active !== undefined) scalarUpdate.isActive = dto.is_active;
+    if (Object.keys(scalarUpdate).length > 0) {
+      await this.usersRepository.update(id, scalarUpdate);
+    }
 
     if (dto.role_codes !== undefined) {
       const newRoles = await this.resolveRolesOrThrow(dto.role_codes);
@@ -276,8 +298,10 @@ export class UsersService {
       );
       await this.userRolesRepository.save(entries);
 
-      user.roleId = newRoles[0]?.id ?? null;
-      await this.usersRepository.save(user);
+      // Cập nhật legacy roleId field
+      await this.usersRepository.update(id, {
+        roleId: newRoles[0]?.id ?? null,
+      });
     }
 
     // Khóa tài khoản → thu hồi toàn bộ refresh_token còn hiệu lực
@@ -310,9 +334,11 @@ export class UsersService {
       );
     }
 
-    user.deletedAt = new Date();
-    user.isActive = false;
-    await this.usersRepository.save(user);
+    // Dùng update() thay save() để tránh TypeORM sync lại bảng junction user_roles
+    await this.usersRepository.update(id, {
+      deletedAt: new Date(),
+      isActive: false,
+    });
     await this.revokeAllRefreshTokens(id);
 
     return { message: "Xóa nhân viên thành công." };
@@ -333,20 +359,26 @@ export class UsersService {
       );
     }
 
-    user.passwordHash = await this.hashPassword(dto.new_password);
-    await this.usersRepository.save(user);
+    const newHash = await this.hashPassword(dto.new_password);
+    // Dùng update() thay save() để tránh TypeORM sync lại bảng junction user_roles
+    await this.usersRepository.update(userId, { passwordHash: newHash });
+    await this.revokeAllRefreshTokens(userId);
 
-    return { message: "Đổi mật khẩu thành công." };
+    return {
+      message:
+        "Đổi mật khẩu thành công. Vui lòng đăng nhập lại với mật khẩu mới.",
+    };
   }
 
   async resetPasswordByAdmin(
     id: number,
     dto: ResetPasswordDto,
   ): Promise<{ message: string }> {
-    const user = await this.findActiveEntityOrThrow(id);
+    await this.findActiveEntityOrThrow(id);
 
-    user.passwordHash = await this.hashPassword(dto.new_password);
-    await this.usersRepository.save(user);
+    const newHash = await this.hashPassword(dto.new_password);
+    // Dùng update() thay save() để tránh TypeORM sync lại bảng junction user_roles
+    await this.usersRepository.update(id, { passwordHash: newHash });
     await this.revokeAllRefreshTokens(id);
 
     return {

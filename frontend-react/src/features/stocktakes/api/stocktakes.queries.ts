@@ -46,6 +46,20 @@ export function useRecordStocktakeItemMutation(stocktakeId: number) {
   });
 }
 
+export function useRecordStocktakeItemsBulkMutation(stocktakeId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: CreateStocktakeItemPayload[]) =>
+      stocktakesApi.recordItemsBulk(stocktakeId, items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["stocktakes", "detail", stocktakeId],
+      });
+      notify.success("Lưu kết quả đếm kiểm kê thành công!");
+    },
+  });
+}
+
 export function useCloseStocktakeMutation() {
   const queryClient = useQueryClient();
   return useMutation({

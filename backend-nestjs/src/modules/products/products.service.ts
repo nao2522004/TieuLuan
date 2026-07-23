@@ -74,13 +74,21 @@ export class ProductsService {
       }
     }
 
+    const baseWhere = {
+      deletedAt: IsNull(),
+      ...(query.branch_id ? { branchId: query.branch_id } : {}),
+      ...(query.category_id ? { categoryId: query.category_id } : {}),
+    };
+
+    const where = query.search
+      ? [
+          { ...baseWhere, name: ILike(`%${query.search}%`) },
+          { ...baseWhere, barcode: ILike(`%${query.search}%`) },
+        ]
+      : baseWhere;
+
     const [rows, total] = await this.productsRepository.findAndCount({
-      where: {
-        deletedAt: IsNull(),
-        ...(query.search ? { name: ILike(`%${query.search}%`) } : {}),
-        ...(query.branch_id ? { branchId: query.branch_id } : {}),
-        ...(query.category_id ? { categoryId: query.category_id } : {}),
-      },
+      where,
       order: { id: "ASC" },
       skip: (page - 1) * limit,
       take: limit,
@@ -131,12 +139,18 @@ export class ProductsService {
   async create(dto: CreateProductDto): Promise<ProductDto> {
     await this.branchesService.findOne(dto.branch_id);
     await this.categoriesService.findOne(dto.category_id);
-    await this.assertBarcodeNotTaken(dto.branch_id, dto.barcode);
+
+    let barcode = dto.barcode?.trim();
+    if (!barcode) {
+      barcode = await this.generateUniqueBarcode();
+    } else {
+      await this.assertBarcodeNotTaken(dto.branch_id, barcode);
+    }
 
     const entity = this.productsRepository.create({
       branchId: dto.branch_id,
       categoryId: dto.category_id,
-      barcode: dto.barcode,
+      barcode,
       name: dto.name,
       unit: dto.unit,
       costPrice: dto.cost_price,
@@ -205,23 +219,32 @@ export class ProductsService {
     return { message: "Xóa sản phẩm thành công." };
   }
 
-  // Barcode Lookup
+  // Barcode / Name Lookup cho màn hình POS
   async findByBarcode(
-    barcode: string,
+    codeOrName: string,
     user: AuthUser,
     queryBranchId?: number,
   ): Promise<ProductDto> {
     const branchId = this.resolveBranchId(user, queryBranchId);
-
-    const product = await this.productsRepository.findOne({
-      where: { barcode, branchId, deletedAt: IsNull() },
+    const search = codeOrName.trim();
+    let product = await this.productsRepository.findOne({
+      where: { barcode: search, branchId, deletedAt: IsNull() },
     });
+    if (!product) {
+      product = await this.productsRepository.findOne({
+        where: [
+          { name: ILike(`%${search}%`), branchId, deletedAt: IsNull() },
+          { barcode: ILike(`%${search}%`), branchId, deletedAt: IsNull() },
+        ],
+        order: { id: "ASC" },
+      });
+    }
 
     if (!product) {
       throw new BusinessException(
         "PRODUCT_NOT_FOUND",
         404,
-        "Không tìm thấy sản phẩm với barcode này.",
+        `Không tìm thấy sản phẩm với từ khóa hoặc mã vạch "${search}".`,
       );
     }
 
@@ -418,6 +441,48 @@ export class ProductsService {
     }
   }
 
+  private async generateUniqueBarcode(): Promise<string> {
+    // 1. Thử sinh mã ngẫu nhiên tối đa 5 lần
+    for (let attempts = 0; attempts < 5; attempts++) {
+      // Tiền tố nội bộ '200' + 9 chữ số ngẫu nhiên = 12 chữ số
+      const raw12Digits = `200${Math.floor(100000009 + Math.random() * 899999991)}`;
+      const candidate = this.appendEan13CheckDigit(raw12Digits);
+
+      // Kiểm tra trùng lặp trên TOÀN HỆ THỐNG (không chia theo branchId)
+      const existing = await this.productsRepository.findOne({
+        where: { barcode: candidate, deletedAt: IsNull() },
+      });
+
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    // 2. Fallback an toàn tuyệt đối (Deterministic): Dùng Timestamp để KHÔNG BAO GIỜ TRÙNG
+    // Prefix '20' (2 số) + 10 số cuối của Timestamp (10 số) = 12 số
+    const timestamp12 = `20${Date.now().toString().slice(-10)}`;
+    return this.appendEan13CheckDigit(timestamp12);
+  }
+
+  /**
+   * Thuật toán tính chữ số kiểm tra (Check Digit) chuẩn GS1 cho EAN-13
+   */
+  private appendEan13CheckDigit(raw12Digits: string): string {
+    if (raw12Digits.length !== 12) {
+      throw new Error("Chuỗi đầu vào phải đúng 12 chữ số");
+    }
+
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      const digit = parseInt(raw12Digits[i], 10);
+
+      sum += i % 2 === 0 ? digit : digit * 3;
+    }
+
+    const checksum = (10 - (sum % 10)) % 10;
+    return `${raw12Digits}${checksum}`;
+  }
+
   private toDto(product: Product): ProductDtoWithoutPricing {
     return {
       id: product.id,
@@ -556,6 +621,9 @@ export class ProductsService {
      WHERE id = $1`,
       [saved.productId],
     );
+
+    // Xóa Redis cache của sản phẩm để cập nhật lại nearest_expiry_date & effective_price real-time
+    await this.evictCacheForProduct(saved.productId);
 
     return {
       id: saved.id,

@@ -21,7 +21,10 @@ import {
 } from "@nestjs/swagger";
 import { StocktakesService } from "./stocktakes.service";
 import { CreateStocktakeDto } from "./dto/create-stocktake.dto";
-import { CreateStocktakeItemDto } from "./dto/create-stocktake-item.dto";
+import {
+  CreateStocktakeItemDto,
+  BulkCreateStocktakeItemDto,
+} from "./dto/create-stocktake-item.dto";
 import { QueryStocktakesDto } from "./dto/query-stocktakes.dto";
 import {
   StocktakeResponseDto,
@@ -73,6 +76,26 @@ export class StocktakesController {
     @Req() req: Request,
   ) {
     return this.stocktakesService.recordItem(id, dto, req.user!);
+  }
+
+  @Post(":id/items/bulk")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "leader", "cashier")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      "Ghi nhận số lượng đếm thực tế của nhiều sản phẩm cùng lúc trong phiên kiểm kê (admin/leader/cashier)",
+  })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 400, type: ApiErrorResponse })
+  @ApiResponse({ status: 403, type: ApiErrorResponse })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  recordItemsBulk(
+    @Param("id", ParseIntIdPipe) id: number,
+    @Body() dto: BulkCreateStocktakeItemDto,
+    @Req() req: Request,
+  ) {
+    return this.stocktakesService.recordItemsBulk(id, dto.items, req.user!);
   }
 
   @Patch(":id/close")

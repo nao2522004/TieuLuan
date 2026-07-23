@@ -1,11 +1,20 @@
+export interface OrderItemBatchInfo {
+  batch_id: number;
+  batch_code: string;
+  expiry_date: string | null;
+  quantity_taken: number;
+}
+
 export interface OrderItem {
   id: number;
   product_id: number;
   product_name: string | null;
   quantity: number;
+  returned_quantity?: number;
   unit_price: number;
   original_unit_price: number | null;
   discount_percent: number | null;
+  batches?: OrderItemBatchInfo[];
 }
 
 export interface Order {

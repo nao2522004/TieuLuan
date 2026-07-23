@@ -63,7 +63,7 @@ export class User {
   @JoinColumn({ name: "role_id" })
   role: Role | null;
 
-  @ManyToMany(() => Role, { eager: true })
+  @ManyToMany(() => Role)
   @JoinTable({
     name: "user_roles",
     joinColumn: { name: "user_id", referencedColumnName: "id" },

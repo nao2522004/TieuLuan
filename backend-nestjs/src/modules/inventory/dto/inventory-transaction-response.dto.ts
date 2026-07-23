@@ -8,6 +8,12 @@ export class InventoryTransactionDto {
   @ApiProperty({ example: 1 })
   product_id: number;
 
+  @ApiProperty({ example: "Nước suối Aquafina 500ml" })
+  product_name: string;
+
+  @ApiProperty({ example: "2001234500019", description: "Mã vạch sản phẩm" })
+  product_barcode: string;
+
   @ApiProperty({ example: "IN", enum: ["IN", "OUT"] })
   type: string;
 

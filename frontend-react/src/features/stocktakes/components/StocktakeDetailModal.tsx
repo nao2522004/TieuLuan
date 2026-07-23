@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { Modal, ModalTitleBar } from "@/components/Modal";
 import { ProductPicker } from "@/components/ProductPicker";
-import { useProductDetailQuery } from "@/features/products/api/products.queries";
+import { useProductDetailQuery, useProductBatchesQuery } from "@/features/products/api/products.queries";
 import type { Product } from "@/features/products/types";
 import {
   useStocktakeDetailQuery,
   useRecordStocktakeItemMutation,
+  useRecordStocktakeItemsBulkMutation,
   useCloseStocktakeMutation,
   useRemoveStocktakeItemMutation,
 } from "../api/stocktakes.queries";
 import type { StocktakeItem } from "../types";
+import { StocktakePrintView } from "./StocktakePrintView";
 
 interface StocktakeDetailModalProps {
   stocktakeId: number;
@@ -37,17 +39,55 @@ function ItemRow({
     if (product) onLoaded(product);
   }, [product, onLoaded]);
 
+  const productName = item.product_name ?? product?.name ?? `Sản phẩm #${item.product_id}`;
+  const barcode = item.product_barcode ?? product?.barcode;
+
   return (
     <tr>
       <td>
-        <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-          {product?.name ?? `Sản phẩm #${item.product_id}`}
-        </div>
-        {product?.barcode && (
+        <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{productName}</div>
+        {barcode && (
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-            {product.barcode}
+            Barcode: {barcode}
           </div>
         )}
+        {item.batch_adjustments && item.batch_adjustments.length > 0 ? (
+          <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3 }}>
+            {item.batch_adjustments.map((adj, aIdx) => (
+              <div
+                key={aIdx}
+                style={{
+                  fontSize: "0.74rem",
+                  padding: "3px 7px",
+                  borderRadius: 4,
+                  background: adj.type === "OUT" ? "rgba(239,68,68,0.12)" : "rgba(16,185,129,0.12)",
+                  color: adj.type === "OUT" ? "#f87171" : "#34d399",
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  width: "fit-content",
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "0.85rem" }}>
+                  {adj.type === "OUT" ? "trending_down" : "trending_up"}
+                </span>
+                <span>
+                  {adj.type === "OUT" ? "Lô bị giảm (xuất bớt):" : "Lô được cộng (nhập thêm):"}{" "}
+                  <strong>{adj.batch_code}</strong> ({adj.type === "OUT" ? "-" : "+"}{adj.quantity} sp)
+                  {adj.expiry_date && <span> · HSD: {adj.expiry_date}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : item.batches && item.batches.length > 0 ? (
+          <div style={{ fontSize: "0.75rem", color: "var(--primary)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: "0.85rem" }}>inventory_2</span>
+            <span>
+              Lô hiện có: <strong>{item.batches.map((b) => `${b.batch_code}${b.expiry_date ? ` (HSD: ${b.expiry_date})` : ""}`).join(", ")}</strong>
+            </span>
+          </div>
+        ) : null}
       </td>
       <td>{item.system_quantity}</td>
       <td style={{ fontWeight: 700 }}>{item.counted_quantity}</td>
@@ -168,7 +208,9 @@ export function StocktakeDetailModal({
                 <span style={{ color: "var(--text-secondary)" }}>
                   Chi nhánh
                 </span>
-                <div style={{ fontWeight: 700 }}>#{stocktake.branch_id}</div>
+                <div style={{ fontWeight: 700 }}>
+                  {stocktake.branch_name ?? `#${stocktake.branch_id}`}
+                </div>
               </div>
               <div>
                 <span style={{ color: "var(--text-secondary)" }}>
@@ -180,6 +222,12 @@ export function StocktakeDetailModal({
                   ) : (
                     <span className="badge badge-info">Đã chốt</span>
                   )}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Người lập</span>
+                <div style={{ fontWeight: 600 }}>
+                  {stocktake.creator_name ?? `User #${stocktake.created_by}`}
                 </div>
               </div>
               <div>
@@ -237,38 +285,44 @@ export function StocktakeDetailModal({
                   />
                 </div>
                 {selectedProduct && (
-                  <div
-                    style={{ display: "flex", gap: 10, alignItems: "flex-end" }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <label
-                        style={{
-                          fontSize: "0.8rem",
-                          display: "block",
-                          marginBottom: 4,
-                        }}
-                      >
-                        Số lượng đếm thực tế *
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        className="form-control"
-                        value={countedQty}
-                        onChange={(e) =>
-                          setCountedQty(Math.max(0, Number(e.target.value)))
-                        }
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={handleAddOrUpdate}
-                      disabled={recordMutation.isPending}
+                  <>
+                    <BatchInspectorPanel
+                      productId={selectedProduct.id}
+                      onTotalCountedChange={(total) => setCountedQty(total)}
+                    />
+                    <div
+                      style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 12 }}
                     >
-                      {recordMutation.isPending ? "Đang lưu..." : "Lưu số đếm"}
-                    </button>
-                  </div>
+                      <div style={{ flex: 1 }}>
+                        <label
+                          style={{
+                            fontSize: "0.8rem",
+                            display: "block",
+                            marginBottom: 4,
+                          }}
+                        >
+                          Tổng số lượng đếm thực tế (Tồn kho sản phẩm) *
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="form-control"
+                          value={countedQty}
+                          onChange={(e) =>
+                            setCountedQty(Math.max(0, Number(e.target.value)))
+                          }
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleAddOrUpdate}
+                        disabled={recordMutation.isPending}
+                      >
+                        {recordMutation.isPending ? "Đang lưu..." : "Lưu số đếm"}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -341,30 +395,182 @@ export function StocktakeDetailModal({
               </div>
             )}
 
-            {isOpen && (
-              <div className="flex-row-end" style={{ marginTop: 20, gap: 10 }}>
-                <button className="btn btn-secondary" onClick={onClose}>
-                  Đóng cửa sổ (giữ phiên mở)
-                </button>
-                <button
-                  className="btn btn-danger"
-                  onClick={handleClose}
-                  disabled={closeMutation.isPending || items.length === 0}
-                  title={
-                    items.length === 0
-                      ? "Cần đếm ít nhất 1 sản phẩm trước khi chốt"
-                      : undefined
-                  }
-                >
-                  {closeMutation.isPending
-                    ? "Đang chốt..."
-                    : "🔒 Chốt phiên kiểm kê"}
-                </button>
+            <div className="flex-row-between" style={{ marginTop: 20, gap: 10 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => window.print()}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>
+                  print
+                </span>
+                In biên bản kiểm kê
+              </button>
+
+              <div className="flex-row-end" style={{ gap: 10 }}>
+                {isOpen ? (
+                  <>
+                    <button className="btn btn-secondary" onClick={onClose}>
+                      Đóng cửa sổ (giữ phiên mở)
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      onClick={handleClose}
+                      disabled={closeMutation.isPending || items.length === 0}
+                      title={
+                        items.length === 0
+                          ? "Cần đếm ít nhất 1 sản phẩm trước khi chốt"
+                          : undefined
+                      }
+                    >
+                      {closeMutation.isPending
+                        ? "Đang chốt..."
+                        : "🔒 Chốt phiên kiểm kê"}
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn btn-secondary" onClick={onClose}>
+                    Đóng
+                  </button>
+                )}
               </div>
-            )}
+            </div>
+
+            {/* Hidden printable report component */}
+            <StocktakePrintView stocktake={stocktake} />
           </>
         )}
       </div>
     </Modal>
+  );
+}
+
+function BatchInspectorPanel({
+  productId,
+  onTotalCountedChange,
+}: {
+  productId: number;
+  onTotalCountedChange: (total: number) => void;
+}) {
+  const { data: batches, isLoading } = useProductBatchesQuery(productId);
+  const [batchCounts, setBatchCounts] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    if (batches && batches.length > 0) {
+      const initial: Record<number, number> = {};
+      batches.forEach((b) => {
+        initial[b.id] = b.quantity_remaining;
+      });
+      setBatchCounts(initial);
+      const total = batches.reduce((sum, b) => sum + b.quantity_remaining, 0);
+      onTotalCountedChange(total);
+    }
+  }, [batches]);
+
+  const handleBatchChange = (batchId: number, val: number) => {
+    const next = { ...batchCounts, [batchId]: val };
+    setBatchCounts(next);
+    const total = Object.values(next).reduce((a, b) => a + b, 0);
+    onTotalCountedChange(total);
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 6 }}>
+        ⏳ Đang tải thông tin lô hàng...
+      </div>
+    );
+  }
+
+  if (!batches || batches.length === 0) {
+    return (
+      <div
+        style={{
+          fontSize: "0.8rem",
+          color: "var(--text-muted)",
+          marginTop: 6,
+          fontStyle: "italic",
+        }}
+      >
+        Sản phẩm chưa ghi nhận lô hàng riêng lẻ, nhập tổng số đếm ở ô bên dưới.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: "10px",
+        background: "rgba(255,255,255,0.03)",
+        borderRadius: 6,
+        border: "1px dashed var(--border-color)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.8rem",
+          fontWeight: 700,
+          marginBottom: 6,
+          color: "var(--primary)",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: "0.95rem" }}
+        >
+          inventory_2
+        </span>
+        Chi tiết các lô hàng hiện có ({batches.length} lô) - nhập số đếm từng lô:
+      </div>
+      <div
+        className="table-container"
+        style={{ maxHeight: 180, overflowY: "auto" }}
+      >
+        <table className="table" style={{ margin: 0, fontSize: "0.78rem" }}>
+          <thead>
+            <tr>
+              <th>Mã lô</th>
+              <th>HSD</th>
+              <th style={{ textAlign: "right" }}>Tồn hệ thống</th>
+              <th style={{ textAlign: "right", width: 130 }}>Số đếm thực tế</th>
+            </tr>
+          </thead>
+          <tbody>
+            {batches.map((b) => (
+              <tr key={b.id}>
+                <td style={{ fontWeight: 600 }}>{b.batch_code}</td>
+                <td>
+                  {b.expiry_date
+                    ? new Date(b.expiry_date).toLocaleDateString("vi-VN")
+                    : "—"}
+                </td>
+                <td style={{ textAlign: "right" }}>{b.quantity_remaining}</td>
+                <td style={{ textAlign: "right" }}>
+                  <input
+                    type="number"
+                    min={0}
+                    className="form-control"
+                    style={{
+                      padding: "2px 6px",
+                      fontSize: "0.78rem",
+                      textAlign: "right",
+                    }}
+                    value={batchCounts[b.id] ?? b.quantity_remaining}
+                    onChange={(e) =>
+                      handleBatchChange(b.id, Math.max(0, Number(e.target.value)))
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ import type { Product, CreateProductPayload } from "../types";
 const productSchema = z.object({
   branch_id: z.coerce.number().min(1, "Vui lòng chọn chi nhánh"),
   category_id: z.coerce.number().min(1, "Vui lòng chọn danh mục"),
-  barcode: z.string().min(1, "Mã vạch (Barcode) không được để trống").max(50, "Mã vạch tối đa 50 ký tự"),
+  barcode: z.string().max(50, "Mã vạch tối đa 50 ký tự").optional().or(z.literal("")),
   name: z.string().min(1, "Tên sản phẩm không được để trống").max(200, "Tên sản phẩm tối đa 200 ký tự"),
   unit: z.string().min(1, "Đơn vị tính không được để trống").max(20, "Đơn vị tính tối đa 20 ký tự"),
   cost_price: z.coerce.number().min(0, "Giá vốn phải lớn hơn hoặc bằng 0"),
@@ -72,7 +72,7 @@ export function ProductForm({ initialValues, onSubmit, onCancel, isLoading }: Pr
     const payload: CreateProductPayload = {
       branch_id: values.branch_id,
       category_id: values.category_id,
-      barcode: values.barcode,
+      barcode: values.barcode?.trim() || undefined,
       name: values.name,
       unit: values.unit,
       cost_price: values.cost_price,
@@ -128,14 +128,17 @@ export function ProductForm({ initialValues, onSubmit, onCancel, isLoading }: Pr
         </div>
 
         <div className="form-group">
-          <label htmlFor="barcode">Mã vạch (Barcode) *</label>
+          <label htmlFor="barcode">Mã vạch (Barcode)</label>
           <input
             id="barcode"
             type="text"
             className="form-control"
-            placeholder="VD: 8931234500019..."
+            placeholder="Tự động sinh mã EAN-13 (893...)"
             {...register("barcode")}
           />
+          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "4px" }}>
+            Tự động sinh mã vạch nếu để trống.
+          </p>
           {errors.barcode && <p className="form-error">{errors.barcode.message}</p>}
         </div>
       </div>

@@ -119,6 +119,12 @@ export class ShiftOrderSummaryDto {
   @ApiProperty({ example: 55000 })
   total_amount: number;
 
+  @ApiProperty({
+    example: 0,
+    description: "Tổng số tiền đã trả/hoàn tiền cho đơn này trong ca (nếu có)",
+  })
+  refunded_amount: number;
+
   @ApiProperty({ example: "2026-07-15T08:10:00.000Z" })
   created_at: Date;
 }

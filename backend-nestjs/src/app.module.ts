@@ -42,6 +42,7 @@ import { ExpiryPricingModule } from "./modules/expiry-pricing/expiry-pricing.mod
 import { Stocktake } from "./modules/stocktakes/entities/stocktake.entity";
 import { StocktakeItem } from "./modules/stocktakes/entities/stocktake-item.entity";
 import { StocktakesModule } from "./modules/stocktakes/stocktakes.module";
+import { AuthCommonModule } from "./common/auth-common.module";
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { StocktakesModule } from "./modules/stocktakes/stocktakes.module";
     HealthModule,
     UsersModule,
     AuthModule,
+    AuthCommonModule,
     CategoriesModule,
     BranchesModule,
     ProductsModule,

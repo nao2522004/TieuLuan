@@ -60,14 +60,20 @@ export function ShiftPrintView({ shift }: ShiftPrintViewProps) {
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Tiền mặt bán được:</span>
-          <span>{shift.cash_orders_total.toLocaleString("vi-VN")} đ</span>
+          <span>+{shift.cash_orders_total.toLocaleString("vi-VN")} đ</span>
         </div>
+        {shift.cash_returns_total > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Tiền mặt hoàn trả:</span>
+            <span>-{shift.cash_returns_total.toLocaleString("vi-VN")} đ</span>
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Thẻ:</span>
+          <span>Doanh thu Thẻ:</span>
           <span>{shift.card_orders_total.toLocaleString("vi-VN")} đ</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span>Chuyển khoản:</span>
+          <span>Doanh thu ZaloPay:</span>
           <span>{shift.transfer_orders_total.toLocaleString("vi-VN")} đ</span>
         </div>
       </div>
@@ -75,12 +81,15 @@ export function ShiftPrintView({ shift }: ShiftPrintViewProps) {
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
       <div style={{ fontSize: "0.85rem" }}>
-        {shift.expected_cash != null && (
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Quỹ dự kiến:</span>
-            <span>{shift.expected_cash.toLocaleString("vi-VN")} đ</span>
-          </div>
-        )}
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Quỹ dự kiến:</span>
+          <span>
+            {(shift.expected_cash ?? shift.live_expected_cash).toLocaleString(
+              "vi-VN",
+            )}{" "}
+            đ
+          </span>
+        </div>
         {shift.closing_cash != null && (
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>Quỹ đếm thực tế:</span>
@@ -103,26 +112,101 @@ export function ShiftPrintView({ shift }: ShiftPrintViewProps) {
             </span>
           </div>
         )}
+        {shift.note && (
+          <div style={{ marginTop: 6, fontStyle: "italic" }}>
+            Ghi chú: {shift.note}
+          </div>
+        )}
       </div>
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
       <div style={{ fontSize: "0.8rem" }}>
-        <div style={{ marginBottom: 4 }}>
+        <div style={{ marginBottom: 6, fontWeight: 700 }}>
           Danh sách đơn ({shift.orders.length} đơn):
         </div>
-        {shift.orders.map((o) => (
-          <div
-            key={o.id}
-            style={{ display: "flex", justifyContent: "space-between" }}
-          >
-            <span>
-              #{o.id} ({methodLabel[o.payment_method] ?? o.payment_method})
-            </span>
-            <span>{o.total_amount.toLocaleString("vi-VN")} đ</span>
-          </div>
-        ))}
+        {shift.orders.map((o) => {
+          const returnsTotal =
+            o.refunded_amount ??
+            (shift.returns || [])
+              .filter((r) => r.order_id === o.id)
+              .reduce((sum, r) => sum + r.refund_amount, 0);
+
+          let statusTag = "Hoàn thành";
+          let isDanger = false;
+          let isWarning = false;
+
+          if (o.status === "cancelled") {
+            statusTag = "Đã hủy";
+            isDanger = true;
+          } else if (returnsTotal >= o.total_amount && o.total_amount > 0) {
+            statusTag = "Đã trả hàng";
+            isWarning = true;
+          } else if (returnsTotal > 0) {
+            statusTag = `Trả 1 phần (-${returnsTotal.toLocaleString("vi-VN")}đ)`;
+            isWarning = true;
+          } else if (o.payment_status === "pending") {
+            statusTag = "Chờ TT";
+            isWarning = true;
+          }
+
+          return (
+            <div
+              key={o.id}
+              style={{
+                marginBottom: 4,
+                paddingBottom: 4,
+                borderBottom: "1px dotted #ccc",
+              }}
+            >
+              <div
+                style={{ display: "flex", justifyContent: "space-between" }}
+              >
+                <span>
+                  <strong>#{o.id}</strong> ({methodLabel[o.payment_method] ?? o.payment_method})
+                </span>
+                <span>{o.total_amount.toLocaleString("vi-VN")} đ</span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "0.75rem",
+                  color: isDanger ? "#d9534f" : isWarning ? "#f0ad4e" : "#555",
+                  marginTop: 1,
+                }}
+              >
+                <span>Trạng thái: [{statusTag}]</span>
+                {o.created_by_name && (
+                  <span style={{ color: "#777" }}>NV: {o.created_by_name}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {shift.returns && shift.returns.length > 0 && (
+        <>
+          <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
+          <div style={{ fontSize: "0.8rem" }}>
+            <div style={{ marginBottom: 4 }}>
+              Danh sách trả hàng ({shift.returns.length} lượt):
+            </div>
+            {shift.returns.map((r) => (
+              <div
+                key={r.id}
+                style={{ display: "flex", justifyContent: "space-between" }}
+              >
+                <span>
+                  Đơn #{r.order_id} - {r.product_name ?? `Sp #${r.order_item_id}`} (x{r.quantity})
+                </span>
+                <span>-{r.refund_amount.toLocaleString("vi-VN")} đ</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div
         style={{

@@ -256,27 +256,53 @@ export default function ReturnsPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {matchedItems.map((item) => {
                       const isSelected = selectedItem?.id === item.id;
+                      const returnedQty = item.returned_quantity ?? 0;
+                      const remainingQty = Math.max(0, item.quantity - returnedQty);
+                      const isFullyReturned = remainingQty === 0;
+
                       return (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => handleSelectItem(item)}
+                          disabled={isFullyReturned}
+                          onClick={() => !isFullyReturned && handleSelectItem(item)}
                           style={{
                             display: "flex", justifyContent: "space-between", alignItems: "center",
-                            padding: "10px 14px", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                            padding: "10px 14px", borderRadius: "var(--radius-sm)",
+                            cursor: isFullyReturned ? "not-allowed" : "pointer",
+                            opacity: isFullyReturned ? 0.6 : 1,
                             border: isSelected ? "1.5px solid var(--primary)" : "1px solid var(--border-color)",
-                            background: isSelected ? "rgba(99,102,241,0.12)" : "rgba(255,255,255,0.03)",
+                            background: isSelected ? "rgba(99,102,241,0.12)" : isFullyReturned ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.03)",
                             color: "var(--text-primary)", width: "100%", textAlign: "left",
                             transition: "all var(--transition-fast)",
                           }}
                         >
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{item.product_name ?? `SP #${item.product_id}`}</div>
-                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>
-                              Item #{item.id} · SL mua: {item.quantity} · {fmt(item.unit_price)} đ/sp
+                            <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                              {item.product_name ?? `SP #${item.product_id}`}
                             </div>
+                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>
+                              Item #{item.id} · SL mua: <strong>{item.quantity}</strong>
+                              {returnedQty > 0 && <span> · Đã trả: <strong style={{ color: "var(--danger)" }}>{returnedQty}</strong></span>}
+                              {remainingQty > 0 && <span> · Có thể trả: <strong style={{ color: "var(--success)" }}>{remainingQty}</strong></span>}
+                              <span> · {fmt(item.unit_price)} đ/sp</span>
+                            </div>
+                            {item.batches && item.batches.length > 0 && (
+                              <div style={{ fontSize: "0.76rem", color: "var(--primary)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: "0.85rem" }}>inventory_2</span>
+                                <span>
+                                  Lô hàng: <strong>{item.batches.map((b) => `${b.batch_code}${b.expiry_date ? ` (HSD: ${b.expiry_date})` : ""}`).join(", ")}</strong>
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          {isSelected && <span style={{ color: "var(--primary)", fontWeight: 700, fontSize: "1.1rem" }}>✓</span>}
+                          {isFullyReturned ? (
+                            <span className="badge badge-secondary" style={{ fontSize: "0.72rem" }}>
+                              Đã trả đủ
+                            </span>
+                          ) : isSelected ? (
+                            <span style={{ color: "var(--primary)", fontWeight: 700, fontSize: "1.1rem" }}>✓</span>
+                          ) : null}
                         </button>
                       );
                     })}
@@ -298,8 +324,21 @@ export default function ReturnsPage() {
             <div style={{ padding: "12px 14px", marginBottom: 20, background: "rgba(16,185,129,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid rgba(16,185,129,0.2)" }}>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>{selectedItem.product_name ?? `Sản phẩm #${selectedItem.product_id}`}</div>
               <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-                Item #{selectedItem.id} · Đã mua: <strong>{selectedItem.quantity}</strong> sp · Đơn giá snapshot: <strong>{fmt(selectedItem.unit_price)} đ</strong>
+                Item #{selectedItem.id} · Đã mua: <strong>{selectedItem.quantity}</strong> sp
+                {(selectedItem.returned_quantity ?? 0) > 0 && (
+                  <span> · Đã trả: <strong style={{ color: "var(--danger)" }}>{selectedItem.returned_quantity}</strong> sp</span>
+                )}
+                {" · "}Có thể trả: <strong style={{ color: "var(--success)" }}>{Math.max(0, selectedItem.quantity - (selectedItem.returned_quantity ?? 0))}</strong> sp
+                {" · "}Đơn giá: <strong>{fmt(selectedItem.unit_price)} đ</strong>
               </div>
+              {selectedItem.batches && selectedItem.batches.length > 0 && (
+                <div style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(16,185,129,0.3)", display: "flex", alignItems: "center", gap: 4 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "0.9rem" }}>inventory_2</span>
+                  <span>
+                    Lô hàng áp dụng: <strong>{selectedItem.batches.map((b) => `${b.batch_code}${b.expiry_date ? ` (HSD: ${b.expiry_date})` : ""}`).join(", ")}</strong>
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ padding: "12px 14px", marginBottom: 20, background: "rgba(255,255,255,0.03)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border-color)", color: "var(--text-muted)", fontSize: "0.85rem", textAlign: "center" }}>
@@ -321,12 +360,12 @@ export default function ReturnsPage() {
                 type="number"
                 className="form-control"
                 min={1}
-                max={selectedItem?.quantity}
+                max={selectedItem ? Math.max(1, selectedItem.quantity - (selectedItem.returned_quantity ?? 0)) : 1}
                 {...register("quantity")}
               />
               {selectedItem && (
                 <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 4 }}>
-                  Tối đa: {selectedItem.quantity} sp
+                  Tối đa có thể trả: <strong>{Math.max(0, selectedItem.quantity - (selectedItem.returned_quantity ?? 0))}</strong> sp
                 </p>
               )}
               {errors.quantity && <p className="form-error">{errors.quantity.message}</p>}

@@ -27,11 +27,15 @@ export class CreateProductDto {
   @IsNotEmpty({ message: "không được để trống" })
   category_id: number;
 
-  @ApiProperty({ example: "8931234500019", maxLength: 50 })
+  @ApiPropertyOptional({
+    example: "8931234500019",
+    maxLength: 50,
+    description: "Mã vạch. Bỏ trống = hệ thống tự động sinh mã vạch EAN-13",
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: "không được để trống" })
   @MaxLength(50, { message: "tối đa 50 ký tự" })
-  barcode: string;
+  barcode?: string;
 
   @ApiProperty({ example: "Nước suối Aquafina 500ml", maxLength: 200 })
   @IsString()

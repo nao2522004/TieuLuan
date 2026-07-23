@@ -37,6 +37,17 @@ export const stocktakesApi = {
     return (res as unknown as ApiSuccessResponse<StocktakeItem>).data;
   },
 
+  recordItemsBulk: async (
+    stocktakeId: number,
+    items: CreateStocktakeItemPayload[],
+  ): Promise<StocktakeItem[]> => {
+    const res = await apiClient.post<ApiSuccessResponse<StocktakeItem[]>>(
+      `/stocktakes/${stocktakeId}/items/bulk`,
+      { items },
+    );
+    return (res as unknown as ApiSuccessResponse<StocktakeItem[]>).data;
+  },
+
   closeStocktake: async (id: number): Promise<Stocktake> => {
     const res = await apiClient.patch<ApiSuccessResponse<Stocktake>>(
       `/stocktakes/${id}/close`,

@@ -54,7 +54,17 @@ function flushQueue(error: unknown, token: string | null) {
 }
 
 function toApiError(err: AxiosError<ApiErrorResponse>): ApiError {
+  const status = err.response?.status ?? 0;
   const body = err.response?.data;
+
+  if (status === 429) {
+    return new ApiError(
+      "TOO_MANY_REQUESTS",
+      "Bạn đã thử đăng nhập quá nhiều lần. Vui lòng đợi 1 phút và thử lại.",
+      429,
+    );
+  }
+
   if (body && body.success === false) {
     return new ApiError(
       body.error.code,
@@ -67,7 +77,7 @@ function toApiError(err: AxiosError<ApiErrorResponse>): ApiError {
   return new ApiError(
     "NETWORK_ERROR",
     "Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng và thử lại.",
-    err.response?.status ?? 0,
+    status,
   );
 }
 

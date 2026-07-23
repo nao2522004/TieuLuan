@@ -65,18 +65,51 @@ export function useCloseShiftMutation() {
   });
 }
 
-export function useCashiersQuery(branchId?: number) {
+export function useCorrectClosedShiftMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { closing_cash?: number; note?: string };
+    }) => shiftsApi.correctClosed(id, payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      queryClient.invalidateQueries({
+        queryKey: ["shifts", "detail", data.id],
+      });
+      notify.success("Cập nhật thông tin ca thành công!");
+    },
+  });
+}
+
+export function useCashiersQuery(
+  branchId?: number,
+  search?: string,
+  roleCode?: string,
+) {
   return useQuery({
-    queryKey: ["users", "cashiers", branchId],
+    queryKey: ["users", "cashiers", branchId, search, roleCode],
     queryFn: async () => {
       const res = await apiClient.get<
-        ApiSuccessResponse<{ id: number; full_name: string }[]>
+        ApiSuccessResponse<
+          { id: number; full_name: string; role_codes: string[] }[]
+        >
       >("/users", {
-        params: { branch_id: branchId, role_code: "cashier", limit: 100 },
+        params: {
+          branch_id: branchId,
+          role_code: roleCode || undefined,
+          is_active: true,
+          search: search || undefined,
+          limit: 20,
+        },
       });
       return (
         res as unknown as ApiSuccessResponse<
-          { id: number; full_name: string }[]
+          { id: number; full_name: string; role_codes: string[] }[]
         >
       ).data;
     },

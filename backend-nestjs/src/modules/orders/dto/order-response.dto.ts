@@ -1,6 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { PaginationMeta } from "../../../common/dto/api-response.dto";
 
+export class OrderItemBatchDto {
+  @ApiProperty({ example: 1 })
+  batch_id: number;
+
+  @ApiProperty({ example: "LÔ-20260723-1" })
+  batch_code: string;
+
+  @ApiProperty({ example: "2026-12-31", nullable: true })
+  expiry_date: string | null;
+
+  @ApiProperty({ example: 2 })
+  quantity_taken: number;
+}
+
 export class OrderItemDto {
   @ApiProperty({ example: 1 })
   id: number;
@@ -37,6 +51,15 @@ export class OrderItemDto {
       "% giảm giá cận hạn đã áp dụng tại thời điểm bán, NULL nếu không áp dụng",
   })
   discount_percent: number | null;
+
+  @ApiProperty({
+    example: 0,
+    description: "Số lượng đã trả hàng cho dòng sản phẩm này",
+  })
+  returned_quantity?: number;
+
+  @ApiProperty({ type: [OrderItemBatchDto], nullable: true })
+  batches?: OrderItemBatchDto[];
 }
 
 export class OrderDataDto {

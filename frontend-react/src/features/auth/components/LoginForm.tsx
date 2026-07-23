@@ -30,6 +30,8 @@ export function LoginForm() {
     } catch (err) {
       if (err instanceof ApiError) {
         setError("root", { message: err.message });
+      } else {
+        setError("root", { message: "Đã có lỗi xảy ra. Vui lòng thử lại." });
       }
     }
   };

@@ -6,7 +6,9 @@ import {
   IsInt,
   IsOptional,
   IsPositive,
+  IsString,
   Max,
+  MaxLength,
   Min,
 } from "class-validator";
 
@@ -57,4 +59,13 @@ export class QueryUsersDto {
   )
   @IsBoolean({ message: "phải là true hoặc false" })
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    example: "Nguyễn",
+    description: "Tìm kiếm theo tên (full_name) hoặc ID nhân viên",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 }

@@ -27,6 +27,7 @@ export interface ShiftOrderSummary {
   payment_status: "pending" | "paid";
   status: "completed" | "cancelled";
   total_amount: number;
+  refunded_amount?: number;
   created_at: string;
 }
 
@@ -66,5 +67,10 @@ export interface OpenShiftPayload {
 
 export interface CloseShiftPayload {
   closing_cash: number;
+  note?: string;
+}
+
+export interface UpdateClosingPayload {
+  closing_cash?: number;
   note?: string;
 }

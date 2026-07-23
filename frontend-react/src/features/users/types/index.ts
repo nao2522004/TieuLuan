@@ -16,13 +16,13 @@ export interface CreateUserPayload {
   email: string;
   password: string;
   branch_id?: number;
-  role_code?: UserRole;
+  role_codes: UserRole[];
 }
 
 export interface UpdateUserPayload {
   full_name?: string;
   branch_id?: number;
-  role_code?: UserRole;
+  role_codes?: UserRole[];
   is_active?: boolean;
 }
 

@@ -8,6 +8,8 @@ export type InventoryTransactionSource =
 export interface InventoryTransaction {
   id: number;
   product_id: number;
+  product_name?: string;
+  product_barcode?: string;
   type: InventoryTransactionType;
   source: InventoryTransactionSource;
   reason: string | null;
@@ -32,4 +34,5 @@ export interface CreateAdjustmentPayload {
   quantity: number;
   reason: string;
   note?: string;
+  batch_id?: number;
 }

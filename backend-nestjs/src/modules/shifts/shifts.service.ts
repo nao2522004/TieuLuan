@@ -6,6 +6,7 @@ import { ShiftUser } from "./entities/shift-user.entity";
 import { Order } from "../orders/entities/order.entity";
 import { OpenShiftDto } from "./dto/open-shift.dto";
 import { CloseShiftDto } from "./dto/close-shift.dto";
+import { UpdateClosingDto } from "./dto/update-closing.dto";
 import { QueryShiftDto } from "./dto/query-shift.dto";
 import {
   ShiftDataDto,
@@ -115,12 +116,14 @@ export class ShiftsService {
             `Thu ngân "${cashier.fullName}" hiện đã bị khóa tài khoản.`,
           );
         }
-        const hasCashierRole = cashier.roles?.some((r) => r.code === "cashier");
-        if (!hasCashierRole) {
+        const hasValidRole = cashier.roles?.some(
+          (r) => r.code === "cashier" || r.code === "leader",
+        );
+        if (!hasValidRole) {
           throw new BusinessException(
             "SHIFT_CASHIER_ROLE_INVALID",
             400,
-            `Người dùng "${cashier.fullName}" không phải là thu ngân.`,
+            `Người dùng "${cashier.fullName}" không có vai trò thu ngân hoặc trưởng ca.`,
           );
         }
         if (cashier.branchId !== branchId) {
@@ -375,9 +378,15 @@ export class ShiftsService {
       }>();
 
     const returnsTotals = { cash: 0, card: 0, transfer: 0 };
+    const orderRefundsMap = new Map<number, number>();
+
     for (const r of returnRows) {
       const key = r.payment_method as keyof typeof returnsTotals;
       if (key in returnsTotals) returnsTotals[key] += Number(r.refund_amount);
+
+      const orderId = Number(r.order_id);
+      const currentRefund = orderRefundsMap.get(orderId) ?? 0;
+      orderRefundsMap.set(orderId, currentRefund + Number(r.refund_amount));
     }
     const liveExpectedCash =
       Number(shift.openingCash) + cashTotal - returnsTotals.cash;
@@ -396,6 +405,7 @@ export class ShiftsService {
       payment_status: o.paymentStatus,
       status: o.status,
       total_amount: Number(o.totalAmount),
+      refunded_amount: orderRefundsMap.get(o.id) ?? 0,
       created_at: o.createdAt,
     }));
 
@@ -435,6 +445,93 @@ export class ShiftsService {
       orders: orderSummaries,
       returns: returnSummaries,
     };
+  }
+
+  async correctClosed(
+    id: number,
+    dto: UpdateClosingDto,
+    user: AuthUser,
+  ): Promise<ShiftDataDto> {
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const shiftRepo = manager.getRepository(Shift);
+
+      const shift = await shiftRepo
+        .createQueryBuilder("s")
+        .setLock("pessimistic_write")
+        .where("s.id = :id", { id })
+        .getOne();
+
+      if (!shift) {
+        throw new BusinessException(
+          "SHIFT_NOT_FOUND",
+          404,
+          "Không tìm thấy ca làm việc.",
+        );
+      }
+      if (!shift.closedAt) {
+        throw new BusinessException(
+          "SHIFT_NOT_CLOSED",
+          400,
+          "Ca làm việc chưa được đóng, không thể sửa thông tin đóng ca.",
+        );
+      }
+      // Chỉ Admin hoặc chính Trưởng ca đã mở ca được sửa
+      if (!user.roles.includes("admin") && shift.userId !== user.id) {
+        throw new BusinessException(
+          "FORBIDDEN",
+          403,
+          "Chỉ Admin hoặc Trưởng ca đã mở ca mới được phép sửa thông tin đóng ca.",
+        );
+      }
+
+      if (dto.closing_cash !== undefined) {
+        // Tính lại expected_cash từ DB
+        const cashRevenue = await manager
+          .getRepository(Order)
+          .createQueryBuilder("o")
+          .select("COALESCE(SUM(o.total_amount), 0)", "sum")
+          .where("o.shift_id = :id", { id })
+          .andWhere("o.payment_method = 'cash'")
+          .andWhere("o.status = 'completed'")
+          .andWhere("o.deleted_at IS NULL")
+          .getRawOne<{ sum: string }>();
+
+        const returnsTotals = await this.loadReturnsTotalsByShift(
+          manager.getRepository(Return),
+          id,
+        );
+
+        const expectedCash =
+          Number(shift.openingCash) +
+          Number(cashRevenue?.sum ?? 0) -
+          returnsTotals.cash;
+
+        shift.closingCash = dto.closing_cash;
+        shift.expectedCash = expectedCash;
+      }
+
+      if (dto.note !== undefined) {
+        shift.note = dto.note || null;
+      }
+
+      return shiftRepo.save(shift);
+    });
+
+    const shiftWithUsers = await this.shiftsRepository.findOne({
+      where: { id: saved.id },
+      relations: ["shiftUsers", "shiftUsers.user"],
+    });
+
+    const { branchNames, userNames } = await this.loadNames(
+      [saved.branchId],
+      [saved.userId],
+    );
+
+    return this.toDto(
+      shiftWithUsers ?? saved,
+      branchNames.get(saved.branchId),
+      userNames.get(saved.userId),
+    );
   }
 
   async findOpenShiftForBranch(branchId: number): Promise<Shift | null> {

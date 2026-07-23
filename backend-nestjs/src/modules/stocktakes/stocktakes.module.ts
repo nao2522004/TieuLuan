@@ -8,6 +8,7 @@ import { StocktakesController } from "./stocktakes.controller";
 import { StocktakesService } from "./stocktakes.service";
 import { UsersModule } from "../users/users.module";
 import { ProductsModule } from "../products/products.module";
+import { BranchesModule } from "../branches/branches.module";
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ProductsModule } from "../products/products.module";
     JwtModule.register({}),
     UsersModule,
     ProductsModule,
+    BranchesModule,
   ],
   controllers: [StocktakesController],
   providers: [StocktakesService],

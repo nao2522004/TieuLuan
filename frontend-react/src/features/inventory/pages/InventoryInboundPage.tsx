@@ -64,7 +64,7 @@ export default function InventoryInboundPage() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Sản phẩm (ID)</th>
+                  <th>Sản phẩm</th>
                   <th>Số lượng</th>
                   <th>Giá vốn tham khảo</th>
                   <th>Ghi chú</th>
@@ -75,7 +75,21 @@ export default function InventoryInboundPage() {
                 {transactions.map((tx) => (
                   <tr key={tx.id}>
                     <td>#{tx.id}</td>
-                    <td>#{tx.product_id}</td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>
+                        {tx.product_name || `Sản phẩm #${tx.product_id}`}
+                      </div>
+                      {tx.product_barcode && (
+                        <div
+                          style={{
+                            fontSize: "0.78rem",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {tx.product_barcode}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ fontWeight: 700, color: "var(--success)" }}>
                       +{tx.quantity}
                     </td>

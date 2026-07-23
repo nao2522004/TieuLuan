@@ -116,12 +116,19 @@ export class InventoryService {
         );
       }
 
-      // Trừ kho theo nguyên tắc FEFO qua các lô
-      const consumed = await this.batchConsumptionService.consumeFefo(
-        manager,
-        dto.product_id,
-        dto.quantity,
-      );
+      // Trừ kho: Nếu chọn lô cụ thể thì trừ lô đó, ngược lại trừ theo nguyên tắc FEFO
+      const consumed = dto.batch_id
+        ? await this.batchConsumptionService.consumeSpecificBatch(
+            manager,
+            dto.product_id,
+            dto.batch_id,
+            dto.quantity,
+          )
+        : await this.batchConsumptionService.consumeFefo(
+            manager,
+            dto.product_id,
+            dto.quantity,
+          );
 
       const txs = consumed.map((c) =>
         manager.getRepository(InventoryTransaction).create({
@@ -156,6 +163,8 @@ export class InventoryService {
     const qb = this.inventoryRepository
       .createQueryBuilder("tx")
       .innerJoin(Product, "p", "tx.product_id = p.id")
+      .addSelect("p.name", "p_name")
+      .addSelect("p.barcode", "p_barcode")
       .where("p.deleted_at IS NULL");
 
     // Lọc theo chi nhánh nếu không phải admin
@@ -188,15 +197,18 @@ export class InventoryService {
       qb.andWhere("tx.created_at <= :endDate", { endDate: toDate });
     }
 
+    const total = await qb.getCount();
 
     qb.orderBy("tx.id", "DESC")
       .skip((page - 1) * limit)
       .take(limit);
 
-    const [rows, total] = await qb.getManyAndCount();
+    const rows = await qb.getRawAndEntities();
 
     return {
-      data: rows.map((r) => this.toDto(r)),
+      data: rows.entities.map((r, i) =>
+        this.toDto(r, rows.raw[i]?.p_name ?? null, rows.raw[i]?.p_barcode ?? null),
+      ),
       meta: {
         current_page: page,
         limit,
@@ -206,10 +218,16 @@ export class InventoryService {
     };
   }
 
-  private toDto(tx: InventoryTransaction): InventoryTransactionDto {
+  private toDto(
+    tx: InventoryTransaction,
+    productName: string | null = null,
+    productBarcode: string | null = null,
+  ): InventoryTransactionDto {
     return {
       id: tx.id,
       product_id: tx.productId,
+      product_name: productName ?? `Sản phẩm #${tx.productId}`,
+      product_barcode: productBarcode ?? "",
       type: tx.type,
       source: tx.source,
       reason: tx.reason,

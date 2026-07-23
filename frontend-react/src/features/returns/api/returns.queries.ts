@@ -13,16 +13,18 @@ export function useReturnsQuery(params?: GetReturnsParams) {
 export function useCreateReturnMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateReturnPayload) => returnsApi.createReturn(payload),
+    mutationFn: (payload: CreateReturnPayload) =>
+      returnsApi.createReturn(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["returns"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
       notify.success("Xử lý trả hàng thành công!");
     },
     onError: (err: unknown) => {
-      // ApiError đã được toast bởi api-client interceptor — chỉ log để debug
+      // ApiError
       console.error("[useCreateReturnMutation] onError:", err);
     },
   });
 }
-

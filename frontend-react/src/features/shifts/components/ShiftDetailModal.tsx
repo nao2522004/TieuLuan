@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useShiftDetailQuery } from "../api/shifts.queries";
 import { Modal, ModalTitleBar } from "@/components/Modal";
 import { useAuth } from "@/features/auth";
-import { CloseShiftModal } from "./ShiftModals";
+import { CloseShiftModal, CorrectCloseModal } from "./ShiftModals";
 import { ShiftPrintView } from "./ShiftPrintView";
 
 interface ShiftDetailModalProps {
@@ -23,10 +23,14 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
   const { user } = useAuth();
   const isAdmin = user?.roles?.includes("admin");
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showCorrectModal, setShowCorrectModal] = useState(false);
   const [ordersPage, setOrdersPage] = useState(1);
 
   const canClose =
     !!shift && !shift.closed_at && (isAdmin || shift.user_id === user?.id);
+
+  const canCorrect =
+    !!shift && !!shift.closed_at && (isAdmin || shift.user_id === user?.id);
 
   const handlePrint = () => {
     window.print();
@@ -343,29 +347,52 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                       </td>
                     </tr>
                   ) : (
-                    pagedOrders.map((o) => (
-                      <tr key={o.id}>
-                        <td>#{o.id}</td>
-                        <td>
-                          <span style={{ fontSize: "0.85rem" }}>
-                            {o.created_by_name ?? `#${o.created_by}`}
-                          </span>
-                        </td>
-                        <td>
-                          {methodLabel[o.payment_method] ?? o.payment_method}
-                        </td>
-                        <td>
-                          <span
-                            className={`badge ${o.status === "completed" ? "badge-success" : "badge-danger"}`}
-                          >
-                            {o.status === "completed" ? "Hoàn thành" : "Đã hủy"}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          {o.total_amount.toLocaleString("vi-VN")} đ
-                        </td>
-                      </tr>
-                    ))
+                    pagedOrders.map((o) => {
+                      const returnsTotal =
+                        o.refunded_amount ??
+                        (shift.returns || [])
+                          .filter((r) => r.order_id === o.id)
+                          .reduce((sum, r) => sum + r.refund_amount, 0);
+
+                      let badgeClass = "badge-success";
+                      let statusText = "Hoàn thành";
+
+                      if (o.status === "cancelled") {
+                        badgeClass = "badge-danger";
+                        statusText = "Đã hủy";
+                      } else if (returnsTotal >= o.total_amount && o.total_amount > 0) {
+                        badgeClass = "badge-warning";
+                        statusText = "Đã trả hàng";
+                      } else if (returnsTotal > 0) {
+                        badgeClass = "badge-warning";
+                        statusText = `Trả 1 phần (-${returnsTotal.toLocaleString("vi-VN")}đ)`;
+                      } else if (o.payment_status === "pending") {
+                        badgeClass = "badge-info";
+                        statusText = "Chờ TT";
+                      }
+
+                      return (
+                        <tr key={o.id}>
+                          <td>#{o.id}</td>
+                          <td>
+                            <span style={{ fontSize: "0.85rem" }}>
+                              {o.created_by_name ?? `#${o.created_by}`}
+                            </span>
+                          </td>
+                          <td>
+                            {methodLabel[o.payment_method] ?? o.payment_method}
+                          </td>
+                          <td>
+                            <span className={`badge ${badgeClass}`}>
+                              {statusText}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            {o.total_amount.toLocaleString("vi-VN")} đ
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -474,37 +501,50 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
               </>
             )}
 
-            {canClose && (
-              <div
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 16,
+              }}
+            >
+              <button
+                className="btn btn-secondary no-print"
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 8,
-                  marginTop: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
+                onClick={handlePrint}
               >
+                <span className="material-symbols-outlined">print</span> In
+                biên bản ca
+              </button>
+
+              {canCorrect && (
                 <button
-                  className="btn btn-secondary no-print"
+                  className="btn btn-warning"
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
                   }}
-                  onClick={handlePrint}
+                  onClick={() => setShowCorrectModal(true)}
                 >
-                  <span className="material-symbols-outlined">print</span> In
-                  biên bản ca
+                  <span className="material-symbols-outlined">edit</span> Sửa thông tin đóng ca
                 </button>
-                {canClose && (
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => setShowCloseModal(true)}
-                  >
-                    🔒 Đóng ca này
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+
+              {canClose && (
+                <button
+                  className="btn btn-danger"
+                  onClick={() => setShowCloseModal(true)}
+                >
+                  🔒 Đóng ca này
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -517,6 +557,12 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
             setShowCloseModal(false);
             onClose();
           }}
+        />
+      )}
+      {showCorrectModal && shift && (
+        <CorrectCloseModal
+          shift={shift}
+          onClose={() => setShowCorrectModal(false)}
         />
       )}
     </Modal>

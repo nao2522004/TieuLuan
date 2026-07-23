@@ -126,7 +126,7 @@ function CreateForm({
       email: values.email,
       password: values.password,
       branch_id: values.branch_id || undefined,
-      role_code: values.role_code,
+      role_codes: [values.role_code], // API yêu cầu array
     });
   };
 
@@ -257,7 +257,7 @@ function EditForm({
     await onSubmit({
       full_name: values.full_name,
       branch_id: values.branch_id || undefined,
-      role_code: values.role_code,
+      role_codes: [values.role_code], // API yêu cầu array
       is_active: values.is_active,
     });
   };

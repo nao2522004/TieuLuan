@@ -17,3 +17,10 @@ export class CreateStocktakeItemDto {
   @Min(0, { message: "counted_quantity phải lớn hơn hoặc bằng 0" })
   counted_quantity: number;
 }
+
+export class BulkCreateStocktakeItemDto {
+  @ApiProperty({ type: [CreateStocktakeItemDto] })
+  @IsNotEmpty({ message: "items không được để trống" })
+  @Type(() => CreateStocktakeItemDto)
+  items: CreateStocktakeItemDto[];
+}

@@ -5,6 +5,7 @@ import type {
   ShiftDetail,
   OpenShiftPayload,
   CloseShiftPayload,
+  UpdateClosingPayload,
 } from "../types";
 
 export interface GetShiftsParams {
@@ -30,6 +31,17 @@ export const shiftsApi = {
   ): Promise<Shift> => {
     const res = await apiClient.patch<ApiSuccessResponse<Shift>>(
       `/shifts/${id}/close`,
+      payload,
+    );
+    return (res as unknown as ApiSuccessResponse<Shift>).data;
+  },
+
+  correctClosed: async (
+    id: number,
+    payload: UpdateClosingPayload,
+  ): Promise<Shift> => {
+    const res = await apiClient.patch<ApiSuccessResponse<Shift>>(
+      `/shifts/${id}/correction`,
       payload,
     );
     return (res as unknown as ApiSuccessResponse<Shift>).data;

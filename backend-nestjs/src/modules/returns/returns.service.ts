@@ -11,14 +11,21 @@ import { BusinessException } from "../../common/exceptions/business.exception";
 import { AuthUser } from "../../common/guards/jwt-auth.guard";
 import { PaginationMeta } from "../../common/dto/api-response.dto";
 
+import { BatchConsumptionService } from "../products/batch-consumption.service";
+import { ProductsService } from "../products/products.service";
+
 @Injectable()
 export class ReturnsService {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly batchConsumptionService: BatchConsumptionService,
+    private readonly productsService: ProductsService,
   ) {}
 
   async create(dto: CreateReturnDto, user: AuthUser): Promise<ReturnDto> {
+    let returnedProductId: number | null = null;
+
     const saved = await this.dataSource.transaction(async (manager) => {
       const orderItemRepo = manager.getRepository(OrderItem);
       const orderRepo = manager.getRepository(Order);
@@ -38,6 +45,8 @@ export class ReturnsService {
         );
       }
 
+      returnedProductId = orderItem.productId;
+
       const order = await orderRepo.findOne({
         where: { id: orderItem.orderId },
       });
@@ -46,6 +55,14 @@ export class ReturnsService {
           "ORDER_NOT_FOUND",
           404,
           "Không tìm thấy đơn hàng chứa dòng sản phẩm này.",
+        );
+      }
+
+      if (order.status === "cancelled") {
+        throw new BusinessException(
+          "ORDER_ALREADY_CANCELLED",
+          400,
+          "Đơn hàng này đã bị hủy, không thể thực hiện trả hàng.",
         );
       }
 
@@ -65,11 +82,20 @@ export class ReturnsService {
       const alreadyReturned = Number(alreadyReturnedRow?.sum ?? 0);
 
       const remaining = orderItem.quantity - alreadyReturned;
+
+      if (remaining <= 0) {
+        throw new BusinessException(
+          "RETURN_QUANTITY_EXCEEDS",
+          400,
+          `Sản phẩm "${orderItem.productName ?? `ID #${orderItem.productId}`}" trong đơn hàng đã được trả đủ (${alreadyReturned}/${orderItem.quantity} sản phẩm), không thể trả thêm.`,
+        );
+      }
+
       if (dto.quantity > remaining) {
         throw new BusinessException(
           "RETURN_QUANTITY_EXCEEDS",
           400,
-          `Số lượng trả (${dto.quantity}) vượt quá số lượng còn có thể trả (${remaining}).`,
+          `Số lượng xin trả (${dto.quantity}) vượt quá số lượng còn lại có thể trả (${remaining} sản phẩm).`,
         );
       }
 
@@ -83,8 +109,24 @@ export class ReturnsService {
         createdBy: user.id,
       });
 
-      return returnRepo.save(entity);
+      const savedReturn = await returnRepo.save(entity);
+
+      // Cộng lại tồn kho sản phẩm & lô hàng tương ứng
+      await this.batchConsumptionService.restoreQuantityForReturnedItem(
+        manager,
+        dto.order_item_id,
+        orderItem.productId,
+        dto.quantity,
+      );
+
+      return savedReturn;
     });
+
+    if (returnedProductId) {
+      try {
+        await this.productsService.evictCacheForProduct(returnedProductId);
+      } catch {}
+    }
 
     return this.toDto(saved);
   }

@@ -20,6 +20,8 @@ import { PromotionsService } from "../promotions/promotions.service";
 import { ExpiryPricingService } from "../expiry-pricing/expiry-pricing.service";
 import { BatchConsumptionService } from "../products/batch-consumption.service";
 import { OrderItemBatch } from "./entities/order-item-batch.entity";
+import { ProductBatch } from "../products/entities/product-batch.entity";
+import { Return } from "../returns/entities/return.entity";
 
 interface LineItem {
   productId: number;
@@ -469,7 +471,69 @@ export class OrdersService {
     const items = await this.orderItemsRepository.find({
       where: { orderId: id },
     });
-    return this.toDto(order, items);
+
+    const itemIds = items.map((i) => i.id);
+    const returnsMap = new Map<number, number>();
+    const itemBatchesMap = new Map<
+      number,
+      {
+        batch_id: number;
+        batch_code: string;
+        expiry_date: string | null;
+        quantity_taken: number;
+      }[]
+    >();
+
+    if (itemIds.length > 0) {
+      const returnRows = await this.dataSource
+        .getRepository(Return)
+        .createQueryBuilder("r")
+        .select("r.order_item_id", "orderItemId")
+        .addSelect("COALESCE(SUM(r.quantity), 0)", "sum")
+        .where("r.order_item_id IN (:...itemIds)", { itemIds })
+        .groupBy("r.order_item_id")
+        .getRawMany<{ orderItemId: string; sum: string }>();
+
+      for (const row of returnRows) {
+        returnsMap.set(Number(row.orderItemId), Number(row.sum));
+      }
+
+      const batchRows = await this.dataSource
+        .getRepository(OrderItemBatch)
+        .createQueryBuilder("oib")
+        .innerJoin(ProductBatch, "pb", "pb.id = oib.batch_id")
+        .select([
+          "oib.order_item_id AS order_item_id",
+          "pb.id AS batch_id",
+          "pb.batch_code AS batch_code",
+          "pb.expiry_date AS expiry_date",
+          "oib.quantity_taken AS quantity_taken",
+        ])
+        .where("oib.order_item_id IN (:...itemIds)", { itemIds })
+        .getRawMany<{
+          order_item_id: string;
+          batch_id: string;
+          batch_code: string;
+          expiry_date: Date | null;
+          quantity_taken: number;
+        }>();
+
+      for (const row of batchRows) {
+        const itemId = Number(row.order_item_id);
+        const list = itemBatchesMap.get(itemId) ?? [];
+        list.push({
+          batch_id: Number(row.batch_id),
+          batch_code: row.batch_code,
+          expiry_date: row.expiry_date
+            ? new Date(row.expiry_date).toISOString().split("T")[0]
+            : null,
+          quantity_taken: row.quantity_taken,
+        });
+        itemBatchesMap.set(itemId, list);
+      }
+    }
+
+    return this.toDto(order, items, undefined, returnsMap, itemBatchesMap);
   }
 
   async cancel(id: number, user: AuthUser): Promise<OrderDataDto> {
@@ -613,7 +677,21 @@ export class OrdersService {
     }
   }
 
-  private toDto(order: Order, items: OrderItem[], qr?: QrResult): OrderDataDto {
+  private toDto(
+    order: Order,
+    items: OrderItem[],
+    qr?: QrResult,
+    returnsMap?: Map<number, number>,
+    itemBatchesMap?: Map<
+      number,
+      {
+        batch_id: number;
+        batch_code: string;
+        expiry_date: string | null;
+        quantity_taken: number;
+      }[]
+    >,
+  ): OrderDataDto {
     return {
       id: order.id,
       branch_id: order.branchId,
@@ -629,6 +707,7 @@ export class OrdersService {
         product_id: it.productId,
         product_name: it.productName ?? null,
         quantity: it.quantity,
+        returned_quantity: returnsMap?.get(it.id) ?? 0,
         unit_price: Number(it.unitPrice),
         original_unit_price:
           it.originalUnitPrice != null ? Number(it.originalUnitPrice) : null,
@@ -636,6 +715,7 @@ export class OrdersService {
           it.expiryDiscountPercent != null
             ? Number(it.expiryDiscountPercent)
             : null,
+        batches: itemBatchesMap?.get(it.id) ?? [],
       })),
       created_at: order.createdAt,
       updated_at: order.updatedAt,
