@@ -11,7 +11,7 @@ export interface OrderItem {
 export interface Order {
   id: number;
   branch_id: number;
-  shift_id: number;
+  shift_id: number | null;
   created_by: number;
   status: "completed" | "cancelled";
   payment_method: "cash" | "card" | "transfer";

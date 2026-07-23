@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -44,7 +45,8 @@ export class StocktakesController {
   @Roles("admin", "leader")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: "Mở phiên kiểm kê kho mới (admin/leader) - Chặn nếu đã có phiên đang open cho chi nhánh",
+    summary:
+      "Mở phiên kiểm kê kho mới (admin/leader) - Chặn nếu đã có phiên đang open cho chi nhánh",
   })
   @ApiResponse({ status: 201, type: StocktakeResponseDto })
   @ApiResponse({ status: 400, type: ApiErrorResponse })
@@ -58,7 +60,8 @@ export class StocktakesController {
   @Roles("admin", "leader", "cashier")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: "Ghi nhận số lượng đếm tay thực tế của một sản phẩm trong phiên kiểm kê (admin/leader/cashier)",
+    summary:
+      "Ghi nhận số lượng đếm tay thực tế của một sản phẩm trong phiên kiểm kê (admin/leader/cashier)",
   })
   @ApiResponse({ status: 201, type: StocktakeResponseDto })
   @ApiResponse({ status: 400, type: ApiErrorResponse })
@@ -77,7 +80,8 @@ export class StocktakesController {
   @Roles("admin", "leader")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Chốt phiên kiểm kê (admin/leader) - Cập nhật stock_quantity, ghi log biến động tồn kho và evict cache",
+    summary:
+      "Chốt phiên kiểm kê (admin/leader) - Cập nhật stock_quantity, ghi log biến động tồn kho và evict cache",
   })
   @ApiResponse({ status: 200, type: StocktakeResponseDto })
   @ApiResponse({ status: 400, type: ApiErrorResponse })
@@ -87,11 +91,34 @@ export class StocktakesController {
     return this.stocktakesService.close(id, req.user!);
   }
 
+  @Delete(":id/items/:itemId")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "leader", "cashier")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Xóa 1 dòng đếm nhầm khỏi phiên kiểm kê đang mở (admin/leader/cashier). " +
+      "Chỉ áp dụng khi phiên còn status='open'.",
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 400, type: ApiErrorResponse })
+  @ApiResponse({ status: 403, type: ApiErrorResponse })
+  @ApiResponse({ status: 404, type: ApiErrorResponse })
+  async removeItem(
+    @Param("id", ParseIntIdPipe) id: number,
+    @Param("itemId", ParseIntIdPipe) itemId: number,
+    @Req() req: Request,
+  ) {
+    await this.stocktakesService.removeItem(id, itemId, req.user!);
+    return { message: "Đã xóa dòng đếm." };
+  }
+
   @Get(":id")
   @UseGuards(RolesGuard)
   @Roles("admin", "leader", "cashier")
   @ApiOperation({
-    summary: "Chi tiết một phiên kiểm kê kho kèm các sản phẩm được đếm (admin/leader/cashier)",
+    summary:
+      "Chi tiết một phiên kiểm kê kho kèm các sản phẩm được đếm (admin/leader/cashier)",
   })
   @ApiResponse({ status: 200, type: StocktakeResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponse })

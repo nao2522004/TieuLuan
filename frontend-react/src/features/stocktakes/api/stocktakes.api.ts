@@ -60,4 +60,8 @@ export const stocktakesApi = {
     );
     return res as unknown as ApiSuccessResponse<Stocktake[]>;
   },
+
+  removeItem: async (stocktakeId: number, itemId: number): Promise<void> => {
+    await apiClient.delete(`/stocktakes/${stocktakeId}/items/${itemId}`);
+  },
 };

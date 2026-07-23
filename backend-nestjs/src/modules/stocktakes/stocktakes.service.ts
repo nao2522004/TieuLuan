@@ -15,6 +15,15 @@ import { PaginationMeta } from "../../common/dto/api-response.dto";
 import { ProductsService } from "../products/products.service";
 import { BatchConsumptionService } from "../products/batch-consumption.service";
 
+interface RawUpsertRow {
+  id: string;
+  stocktake_id: string;
+  product_id: string;
+  system_quantity: number;
+  counted_quantity: number;
+  difference: number;
+}
+
 @Injectable()
 export class StocktakesService {
   constructor(
@@ -75,81 +84,8 @@ export class StocktakesService {
     dto: CreateStocktakeItemDto,
     user: AuthUser,
   ): Promise<StocktakeItemDto> {
-    const stocktake = await this.stocktakeRepository.findOne({
-      where: { id: stocktakeId },
-    });
-
-    if (!stocktake) {
-      throw new BusinessException(
-        "STOCKTAKE_NOT_FOUND",
-        404,
-        "Không tìm thấy phiên kiểm kê.",
-      );
-    }
-
-    if (stocktake.status !== "open") {
-      throw new BusinessException(
-        "STOCKTAKE_CLOSED",
-        400,
-        "Phiên kiểm kê đã đóng.",
-      );
-    }
-
-    if (!user.roles.includes("admin") && stocktake.branchId !== user.branchId) {
-      throw new BusinessException(
-        "FORBIDDEN",
-        403,
-        "Bạn không có quyền thao tác trên phiên kiểm kê của chi nhánh khác.",
-      );
-    }
-
-    const product = await this.productRepository.findOne({
-      where: { id: dto.product_id, deletedAt: IsNull() },
-    });
-
-    if (!product) {
-      throw new BusinessException(
-        "PRODUCT_NOT_FOUND",
-        404,
-        "Không tìm thấy sản phẩm hoặc sản phẩm đã bị xóa.",
-      );
-    }
-
-    if (product.branchId !== stocktake.branchId) {
-      throw new BusinessException(
-        "PRODUCT_BRANCH_MISMATCH",
-        400,
-        "Sản phẩm không thuộc chi nhánh của phiên kiểm kê.",
-      );
-    }
-
-    let item = await this.itemRepository.findOne({
-      where: { stocktakeId, productId: dto.product_id },
-    });
-
-    if (item) {
-      item.countedQuantity = dto.counted_quantity;
-      item.difference = item.countedQuantity - item.systemQuantity;
-    } else {
-      item = this.itemRepository.create({
-        stocktakeId,
-        productId: dto.product_id,
-        systemQuantity: product.stockQuantity,
-        countedQuantity: dto.counted_quantity,
-        difference: dto.counted_quantity - product.stockQuantity,
-      });
-    }
-
-    const saved = await this.itemRepository.save(item);
-    return this.toItemDto(saved);
-  }
-
-  async close(stocktakeId: number, user: AuthUser): Promise<StocktakeDto> {
-    const savedStocktake = await this.dataSource.transaction(async (manager) => {
+    return this.dataSource.transaction(async (manager) => {
       const stocktakeRepo = manager.getRepository(Stocktake);
-      const itemRepo = manager.getRepository(StocktakeItem);
-      const productRepo = manager.getRepository(Product);
-      const txRepo = manager.getRepository(InventoryTransaction);
 
       const stocktake = await stocktakeRepo
         .createQueryBuilder("s")
@@ -173,36 +109,237 @@ export class StocktakesService {
         );
       }
 
-      if (!user.roles.includes("admin") && stocktake.branchId !== user.branchId) {
+      if (
+        !user.roles.includes("admin") &&
+        stocktake.branchId !== user.branchId
+      ) {
         throw new BusinessException(
           "FORBIDDEN",
           403,
-          "Bạn không có quyền chốt phiên kiểm kê của chi nhánh khác.",
+          "Bạn không có quyền thao tác trên phiên kiểm kê của chi nhánh khác.",
         );
       }
 
-      const items = await itemRepo.find({
-        where: { stocktakeId },
+      const product = await manager.getRepository(Product).findOne({
+        where: { id: dto.product_id, deletedAt: IsNull() },
       });
 
-      for (const item of items) {
-        if (item.difference < 0) {
-          // Thiếu hàng -> trừ kho theo FEFO
-          const consumed = await this.batchConsumptionService.consumeFefo(
-            manager,
-            item.productId,
-            Math.abs(item.difference),
-          );
+      if (!product) {
+        throw new BusinessException(
+          "PRODUCT_NOT_FOUND",
+          404,
+          "Không tìm thấy sản phẩm hoặc sản phẩm đã bị xóa.",
+        );
+      }
 
-          for (const c of consumed) {
+      if (product.branchId !== stocktake.branchId) {
+        throw new BusinessException(
+          "PRODUCT_BRANCH_MISMATCH",
+          400,
+          "Sản phẩm không thuộc chi nhánh của phiên kiểm kê.",
+        );
+      }
+
+      const rows = await manager.query<RawUpsertRow[]>(
+        `
+        INSERT INTO stocktake_items
+          (stocktake_id, product_id, system_quantity, counted_quantity, difference)
+        VALUES ($1, $2, $3, $4, $4 - $3)
+        ON CONFLICT (stocktake_id, product_id)
+        DO UPDATE SET
+          counted_quantity = EXCLUDED.counted_quantity,
+          difference = EXCLUDED.counted_quantity - stocktake_items.system_quantity
+        RETURNING id, stocktake_id, product_id, system_quantity, counted_quantity, difference
+        `,
+        [
+          stocktakeId,
+          dto.product_id,
+          product.stockQuantity,
+          dto.counted_quantity,
+        ],
+      );
+
+      const row = rows[0];
+      return {
+        id: parseInt(row.id, 10),
+        stocktake_id: parseInt(row.stocktake_id, 10),
+        product_id: parseInt(row.product_id, 10),
+        system_quantity: row.system_quantity,
+        counted_quantity: row.counted_quantity,
+        difference: row.difference,
+      };
+    });
+  }
+
+  async removeItem(
+    stocktakeId: number,
+    itemId: number,
+    user: AuthUser,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const stocktakeRepo = manager.getRepository(Stocktake);
+
+      const stocktake = await stocktakeRepo
+        .createQueryBuilder("s")
+        .setLock("pessimistic_write")
+        .where("s.id = :id", { id: stocktakeId })
+        .getOne();
+
+      if (!stocktake) {
+        throw new BusinessException(
+          "STOCKTAKE_NOT_FOUND",
+          404,
+          "Không tìm thấy phiên kiểm kê.",
+        );
+      }
+
+      if (stocktake.status !== "open") {
+        throw new BusinessException(
+          "STOCKTAKE_CLOSED",
+          400,
+          "Phiên kiểm kê đã đóng, không thể xóa dòng đếm.",
+        );
+      }
+
+      if (
+        !user.roles.includes("admin") &&
+        stocktake.branchId !== user.branchId
+      ) {
+        throw new BusinessException(
+          "FORBIDDEN",
+          403,
+          "Bạn không có quyền thao tác trên phiên kiểm kê của chi nhánh khác.",
+        );
+      }
+
+      const itemRepo = manager.getRepository(StocktakeItem);
+      const item = await itemRepo.findOne({
+        where: { id: itemId, stocktakeId },
+      });
+
+      if (!item) {
+        throw new BusinessException(
+          "STOCKTAKE_ITEM_NOT_FOUND",
+          404,
+          "Không tìm thấy dòng đếm này trong phiên kiểm kê.",
+        );
+      }
+
+      await itemRepo.remove(item);
+    });
+  }
+
+  async close(stocktakeId: number, user: AuthUser): Promise<StocktakeDto> {
+    const skippedItems: { product_id: number; reason: string }[] = [];
+
+    const savedStocktake = await this.dataSource.transaction(
+      async (manager) => {
+        const stocktakeRepo = manager.getRepository(Stocktake);
+        const itemRepo = manager.getRepository(StocktakeItem);
+        const productRepo = manager.getRepository(Product);
+        const txRepo = manager.getRepository(InventoryTransaction);
+
+        const stocktake = await stocktakeRepo
+          .createQueryBuilder("s")
+          .setLock("pessimistic_write")
+          .where("s.id = :id", { id: stocktakeId })
+          .getOne();
+
+        if (!stocktake) {
+          throw new BusinessException(
+            "STOCKTAKE_NOT_FOUND",
+            404,
+            "Không tìm thấy phiên kiểm kê.",
+          );
+        }
+
+        if (stocktake.status !== "open") {
+          throw new BusinessException(
+            "STOCKTAKE_CLOSED",
+            400,
+            "Phiên kiểm kê đã đóng.",
+          );
+        }
+
+        if (
+          !user.roles.includes("admin") &&
+          stocktake.branchId !== user.branchId
+        ) {
+          throw new BusinessException(
+            "FORBIDDEN",
+            403,
+            "Bạn không có quyền chốt phiên kiểm kê của chi nhánh khác.",
+          );
+        }
+
+        const items = await itemRepo.find({ where: { stocktakeId } });
+
+        const sortedItems = [...items].sort(
+          (a, b) => a.productId - b.productId,
+        );
+
+        for (const item of sortedItems) {
+          const product = await productRepo
+            .createQueryBuilder("p")
+            .setLock("pessimistic_write")
+            .where("p.id = :id", { id: item.productId })
+            .getOne();
+
+          if (!product || product.deletedAt) {
+            skippedItems.push({
+              product_id: item.productId,
+              reason:
+                "Sản phẩm đã bị xóa (hoặc không còn tồn tại) sau khi đếm — bỏ qua điều chỉnh tồn kho cho dòng này.",
+            });
+            continue;
+          }
+
+          if (item.difference === 0) {
+            continue;
+          }
+
+          if (item.difference < 0) {
+            const consumed = await this.batchConsumptionService.consumeFefo(
+              manager,
+              item.productId,
+              Math.abs(item.difference),
+            );
+
+            for (const c of consumed) {
+              const tx = txRepo.create({
+                productId: item.productId,
+                type: "OUT",
+                source: "STOCKTAKE",
+                reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
+                quantity: c.quantityTaken,
+                unitCost: null,
+                batchId: c.batchId,
+                note: stocktake.note
+                  ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
+                  : `Phiên kiểm kê #${stocktake.id}`,
+                createdBy: user.id,
+              });
+              await txRepo.save(tx);
+            }
+          } else {
+            const batch = await this.batchConsumptionService.receiveBatch(
+              manager,
+              item.productId,
+              item.difference,
+              null,
+              0,
+              user.id,
+              `LÔ-KIỂMKÊ-${stocktake.id}-${item.productId}`,
+            );
+
             const tx = txRepo.create({
               productId: item.productId,
-              type: "OUT",
+              type: "IN",
               source: "STOCKTAKE",
               reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
-              quantity: c.quantityTaken,
+              quantity: item.difference,
               unitCost: null,
-              batchId: c.batchId,
+              batchId: batch.id,
               note: stocktake.note
                 ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
                 : `Phiên kiểm kê #${stocktake.id}`,
@@ -210,46 +347,24 @@ export class StocktakesService {
             });
             await txRepo.save(tx);
           }
-        } else if (item.difference > 0) {
-          // Thừa hàng -> tạo lô mới không hạn dùng
-          const batch = await this.batchConsumptionService.receiveBatch(
-            manager,
-            item.productId,
-            item.difference,
-            null,
-            0,
-            user.id,
-            `LÔ-KIỂMKÊ-${stocktake.id}-${item.productId}`,
-          );
-
-          const tx = txRepo.create({
-            productId: item.productId,
-            type: "IN",
-            source: "STOCKTAKE",
-            reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
-            quantity: item.difference,
-            unitCost: null,
-            batchId: batch.id,
-            note: stocktake.note
-              ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
-              : `Phiên kiểm kê #${stocktake.id}`,
-            createdBy: user.id,
-          });
-          await txRepo.save(tx);
         }
-      }
 
-      stocktake.status = "closed";
-      stocktake.closedAt = new Date();
-      return stocktakeRepo.save(stocktake);
-    });
+        stocktake.status = "closed";
+        stocktake.closedAt = new Date();
+        return stocktakeRepo.save(stocktake);
+      },
+    );
 
     const items = await this.itemRepository.find({ where: { stocktakeId } });
     for (const item of items) {
       await this.productsService.evictCacheForProduct(item.productId);
     }
 
-    return this.findOne(savedStocktake.id, user);
+    const dto = await this.findOne(savedStocktake.id, user);
+    return {
+      ...dto,
+      skipped_items: skippedItems.length > 0 ? skippedItems : undefined,
+    };
   }
 
   async findOne(id: number, user: AuthUser): Promise<StocktakeDto> {

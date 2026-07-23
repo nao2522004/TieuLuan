@@ -7,6 +7,7 @@ import {
   useStocktakeDetailQuery,
   useRecordStocktakeItemMutation,
   useCloseStocktakeMutation,
+  useRemoveStocktakeItemMutation,
 } from "../api/stocktakes.queries";
 import type { StocktakeItem } from "../types";
 
@@ -19,10 +20,16 @@ function ItemRow({
   item,
   onLoaded,
   onEdit,
+  onDelete,
+  isOpen,
+  isDeleting,
 }: {
   item: StocktakeItem;
   onLoaded: (p: Product) => void;
   onEdit: (p: Product, item: StocktakeItem) => void;
+  onDelete: (itemId: number) => void;
+  isOpen: boolean;
+  isDeleting: boolean;
 }) {
   const { data: product } = useProductDetailQuery(item.product_id);
 
@@ -58,17 +65,33 @@ function ItemRow({
         {item.difference > 0 ? "+" : ""}
         {item.difference}
       </td>
-      <td style={{ textAlign: "right" }}>
-        {product && (
-          <button
-            className="btn btn-secondary"
-            style={{ padding: "4px 10px", fontSize: "0.78rem" }}
-            onClick={() => onEdit(product, item)}
-          >
-            Sửa số đếm
-          </button>
-        )}
-      </td>
+      {isOpen && (
+        <td style={{ textAlign: "right" }}>
+          <div className="flex-row-end" style={{ gap: 6 }}>
+            {product && (
+              <button
+                className="btn btn-secondary"
+                style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                onClick={() => onEdit(product, item)}
+              >
+                Sửa số đếm
+              </button>
+            )}
+            <button
+              className="btn btn-danger"
+              style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+              disabled={isDeleting}
+              onClick={() => {
+                if (window.confirm("Xóa dòng đếm này khỏi phiên kiểm kê?")) {
+                  onDelete(item.id);
+                }
+              }}
+            >
+              Xóa
+            </button>
+          </div>
+        </td>
+      )}
     </tr>
   );
 }
@@ -115,6 +138,8 @@ export function StocktakeDetailModal({
       await closeMutation.mutateAsync(stocktakeId);
     }
   };
+
+  const removeItemMutation = useRemoveStocktakeItemMutation(stocktakeId);
 
   return (
     <Modal onClose={onClose} maxWidth={700}>
@@ -281,10 +306,38 @@ export function StocktakeDetailModal({
                         item={item}
                         onLoaded={cacheProduct}
                         onEdit={handleEditRow}
+                        onDelete={(itemId) => removeItemMutation.mutate(itemId)}
+                        isOpen={isOpen}
+                        isDeleting={removeItemMutation.isPending}
                       />
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {stocktake.skipped_items && stocktake.skipped_items.length > 0 && (
+              <div
+                style={{
+                  padding: 12,
+                  marginBottom: 16,
+                  background: "rgba(245,158,11,0.08)",
+                  border: "1px solid rgba(245,158,11,0.3)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.82rem",
+                }}
+              >
+                <strong>
+                  ⚠️ {stocktake.skipped_items.length} sản phẩm bị bỏ qua khi
+                  chốt phiên
+                </strong>
+                <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+                  {stocktake.skipped_items.map((s) => (
+                    <li key={s.product_id}>
+                      Sản phẩm #{s.product_id}: {s.reason}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

@@ -1,6 +1,7 @@
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn, Unique } from "typeorm";
 
 @Entity("stocktake_items")
+@Unique("uq_stocktake_items_stocktake_product", ["stocktakeId", "productId"])
 export class StocktakeItem {
   @PrimaryColumn({
     type: "bigint",

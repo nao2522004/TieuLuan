@@ -64,3 +64,17 @@ export function useCloseStocktakeMutation() {
     },
   });
 }
+
+export function useRemoveStocktakeItemMutation(stocktakeId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: number) =>
+      stocktakesApi.removeItem(stocktakeId, itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["stocktakes", "detail", stocktakeId],
+      });
+      notify.success("Đã xóa dòng đếm.");
+    },
+  });
+}

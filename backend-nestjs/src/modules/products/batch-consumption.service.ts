@@ -180,6 +180,7 @@ export class BatchConsumptionService {
   async restoreExactBatches(
     manager: EntityManager,
     orderItemId: number,
+    productId: number,
   ): Promise<void> {
     const itemBatches = await manager.getRepository(OrderItemBatch).find({
       where: { orderItemId },
@@ -188,8 +189,14 @@ export class BatchConsumptionService {
 
     if (itemBatches.length === 0) return;
 
+    const product = await manager
+      .getRepository(Product)
+      .createQueryBuilder("p")
+      .setLock("pessimistic_write")
+      .where("p.id = :productId AND p.deleted_at IS NULL", { productId })
+      .getOne();
+
     const batchRepo = manager.getRepository(ProductBatch);
-    let productId: number | null = null;
     let totalRestored = 0;
 
     for (const ib of itemBatches) {
@@ -202,40 +209,28 @@ export class BatchConsumptionService {
       if (batch) {
         batch.quantityRemaining += ib.quantityTaken;
         await batchRepo.save(batch);
-        productId = batch.productId;
         totalRestored += ib.quantityTaken;
       }
     }
 
-    if (productId && totalRestored > 0) {
-      const product = await manager
-        .getRepository(Product)
-        .createQueryBuilder("p")
-        .setLock("pessimistic_write")
-        .where("p.id = :productId AND p.deleted_at IS NULL", { productId })
+    if (product && totalRestored > 0) {
+      product.stockQuantity += totalRestored;
+
+      const earliestBatch = await manager
+        .getRepository(ProductBatch)
+        .createQueryBuilder("pb")
+        .where(
+          "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+          { productId },
+        )
+        .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
+        .addOrderBy("pb.id", "ASC")
         .getOne();
 
-      if (product) {
-        product.stockQuantity += totalRestored;
-
-        const earliestBatch = await manager
-          .getRepository(ProductBatch)
-          .createQueryBuilder("pb")
-          .where(
-            "pb.product_id = :productId AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
-            {
-              productId,
-            },
-          )
-          .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
-          .addOrderBy("pb.id", "ASC")
-          .getOne();
-
-        product.nearestExpiryDate = earliestBatch
-          ? earliestBatch.expiryDate
-          : null;
-        await manager.getRepository(Product).save(product);
-      }
+      product.nearestExpiryDate = earliestBatch
+        ? earliestBatch.expiryDate
+        : null;
+      await manager.getRepository(Product).save(product);
     }
   }
 

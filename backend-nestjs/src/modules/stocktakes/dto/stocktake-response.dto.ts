@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { PaginationMeta } from "../../../common/dto/api-response.dto";
 
 export class StocktakeItemDto {
@@ -19,6 +19,17 @@ export class StocktakeItemDto {
 
   @ApiProperty({ example: -2 })
   difference: number;
+}
+
+export class StocktakeSkippedItemDto {
+  @ApiProperty({ example: 5 })
+  product_id: number;
+
+  @ApiProperty({
+    example:
+      "Sản phẩm đã bị xóa (hoặc không còn tồn tại) sau khi đếm — bỏ qua điều chỉnh tồn kho cho dòng này.",
+  })
+  reason: string;
 }
 
 export class StocktakeDto {
@@ -45,6 +56,14 @@ export class StocktakeDto {
 
   @ApiProperty({ type: [StocktakeItemDto], required: false })
   items?: StocktakeItemDto[];
+
+  @ApiPropertyOptional({
+    type: [StocktakeSkippedItemDto],
+    description:
+      "Danh sách sản phẩm bị bỏ qua khi chốt phiên do đã bị xóa mềm sau khi " +
+      "được đếm. Chỉ xuất hiện trong response của PATCH /stocktakes/:id/close.",
+  })
+  skipped_items?: StocktakeSkippedItemDto[];
 }
 
 export class StocktakeResponseDto {

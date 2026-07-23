@@ -141,8 +141,7 @@ export class OrdersService {
               );
             lineTotal += pricing.effective_price * cb.quantityTaken;
           }
-          lineTotal = Math.round(lineTotal * 100) / 100; // khớp NUMERIC(12,2)
-
+          lineTotal = Math.round(lineTotal * 100) / 100;
           const originalTotal = salePrice * item.quantity;
           const isDiscounted = lineTotal < originalTotal;
           const unitPrice = Math.round((lineTotal / item.quantity) * 100) / 100;
@@ -304,6 +303,7 @@ export class OrdersService {
             await this.batchConsumptionService.restoreExactBatches(
               manager,
               item.id,
+              item.productId,
             );
           }
 
@@ -567,6 +567,7 @@ export class OrdersService {
           await this.batchConsumptionService.restoreExactBatches(
             manager,
             item.id,
+            item.productId,
           );
         }
 

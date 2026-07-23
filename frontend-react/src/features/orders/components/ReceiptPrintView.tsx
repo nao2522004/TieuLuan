@@ -134,6 +134,8 @@ export function ReceiptPrintView({
   branchPhone,
   discountedItemsCount,
 }: ReceiptPrintViewProps) {
+  const isCancelled = order.status === "cancelled";
+
   return (
     <div
       id="print-receipt"
@@ -174,18 +176,82 @@ export function ReceiptPrintView({
         })()}
       </div>
 
+      {isCancelled && (
+        <div
+          style={{
+            textAlign: "center",
+            fontWeight: 700,
+            fontSize: "0.95rem",
+            border: "2px solid #000",
+            padding: "4px 0",
+            margin: "8px 0",
+          }}
+        >
+          *** ĐƠN HÀNG ĐÃ HỦY ***
+        </div>
+      )}
+
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
       <div style={{ fontSize: "0.85rem" }}>
         <div>Hóa đơn: #{order.id}</div>
         <div>Ngày: {new Date(order.created_at).toLocaleString("vi-VN")}</div>
+        <div>Nhân viên bán hàng: #{order.created_by}</div>
+        {order.shift_id != null && <div>Ca làm việc: #{order.shift_id}</div>}
         <div>
           Thanh toán:{" "}
           {methodLabel[order.payment_method] ?? order.payment_method}
         </div>
+        {order.payment_method === "transfer" && order.zalopay_app_trans_id && (
+          <div>Mã GD ZaloPay: {order.zalopay_app_trans_id}</div>
+        )}
       </div>
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
+
+      {/* Danh sách sản phẩm — trước đây hóa đơn in ra HOÀN TOÀN THIẾU phần này,
+          chỉ có tổng tiền, khách không biết mình mua món gì. */}
+      <div style={{ fontSize: "0.82rem" }}>
+        {order.items.map((it) => {
+          const hasDiscount = !!it.original_unit_price;
+          const lineTotal = it.unit_price * it.quantity;
+          return (
+            <div key={it.id} style={{ marginBottom: 6 }}>
+              <div style={{ fontWeight: 600 }}>
+                {it.product_name ?? `Sản phẩm #${it.product_id}`}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "0.8rem",
+                }}
+              >
+                <span>
+                  {it.quantity} x {it.unit_price.toLocaleString("vi-VN")} đ
+                  {hasDiscount && it.discount_percent != null && (
+                    <span> (−{it.discount_percent}%)</span>
+                  )}
+                </span>
+                <span style={{ fontWeight: 600 }}>
+                  {lineTotal.toLocaleString("vi-VN")} đ
+                </span>
+              </div>
+              {hasDiscount && (
+                <div
+                  style={{
+                    fontSize: "0.72rem",
+                    textDecoration: "line-through",
+                    color: "#555",
+                  }}
+                >
+                  Giá gốc: {it.original_unit_price!.toLocaleString("vi-VN")} đ
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
@@ -205,10 +271,29 @@ export function ReceiptPrintView({
             ? Math.round((expiryDiscountTotal / grossOriginal) * 1000) / 10
             : 0;
 
+        const totalQuantity = order.items.reduce(
+          (sum, it) => sum + it.quantity,
+          0,
+        );
+
         return (
           <div style={{ fontSize: "0.85rem" }}>
-            {/* 1. Giá gốc */}
+            {/* Tổng số lượng / số dòng — thông tin đối soát nhanh khi kiểm hàng */}
             <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Tổng số lượng:</span>
+              <span>
+                {totalQuantity} món ({order.items.length} loại)
+              </span>
+            </div>
+
+            {/* 1. Giá gốc */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 4,
+              }}
+            >
               <span>Giá gốc:</span>
               <span>{grossOriginal.toLocaleString("vi-VN")} đ</span>
             </div>
@@ -226,7 +311,11 @@ export function ReceiptPrintView({
                   }}
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    Giảm giá cận hạn/sự kiện:
+                    Giảm giá cận hạn/sự kiện
+                    {discountedItemsCount
+                      ? ` (${discountedItemsCount} món)`
+                      : ""}
+                    :
                   </span>
                   <span
                     style={{
@@ -239,7 +328,7 @@ export function ReceiptPrintView({
                   </span>
                 </div>
                 <div style={{ fontSize: "0.72rem", color: "#000" }}>
-                  (Mức giảm: −{expiryDiscountPercentAvg}%)
+                  (Mức giảm bình quân: −{expiryDiscountPercentAvg}%)
                 </div>
               </div>
             )}

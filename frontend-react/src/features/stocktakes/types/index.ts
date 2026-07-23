@@ -29,3 +29,20 @@ export interface CreateStocktakeItemPayload {
   product_id: number;
   counted_quantity: number;
 }
+
+export interface StocktakeSkippedItem {
+  product_id: number;
+  reason: string;
+}
+
+export interface Stocktake {
+  id: number;
+  branch_id: number;
+  created_by: number;
+  status: StocktakeStatus;
+  note: string | null;
+  created_at: string;
+  closed_at: string | null;
+  items?: StocktakeItem[];
+  skipped_items?: StocktakeSkippedItem[];
+}
