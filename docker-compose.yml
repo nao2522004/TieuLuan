@@ -1,0 +1,68 @@
+services:
+  db_nestjs:
+    image: postgres:16
+    container_name: db_nestjs
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: store_nestjs
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - pgdata_nestjs:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d store_nestjs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis_nestjs:
+    image: redis:7-alpine
+    container_name: redis_nestjs
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    environment:
+      TZ: UTC
+    volumes:
+      - redisdata_nestjs:/data
+
+  db_fastapi:
+    image: postgres:16
+    container_name: db_fastapi
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: store_fastapi
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - pgdata_fastapi:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d store_fastapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis_fastapi:
+    image: redis:7-alpine
+    container_name: redis_fastapi
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    environment:
+      TZ: UTC
+    volumes:
+      - redisdata_fastapi:/data
+
+volumes:
+  pgdata_nestjs:
+  redisdata_nestjs:
+  pgdata_fastapi:
+  redisdata_fastapi:

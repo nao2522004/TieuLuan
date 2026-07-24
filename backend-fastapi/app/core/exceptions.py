@@ -19,6 +19,8 @@ class AppException(Exception):
         self.status_code = status_code
         self.message = message
 
+BusinessException = AppException
+
 
 def _error_body(code: str, message: str, trace_id: str) -> dict:
     return {
