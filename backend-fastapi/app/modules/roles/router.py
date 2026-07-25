@@ -5,7 +5,7 @@ from app.modules.roles.service import RoleService
 from app.modules.auth.dependencies import require_roles
 from app.common.schemas import ApiSuccessResponse
 
-router = APIRouter(prefix="/api/v1/roles", tags=["roles"])
+router = APIRouter(prefix="/roles", tags=["roles"]) 
 
 @router.get(
     "",
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/roles", tags=["roles"])
 )
 async def get_roles(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_roles(["admin"])),
+    _user=Depends(require_roles(["admin"])),
 ):
     service = RoleService(db)
     data = await service.find_all()

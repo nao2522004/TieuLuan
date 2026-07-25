@@ -1,4 +1,5 @@
 import os
+
 os.environ["TZ"] = "UTC"
 
 from fastapi import FastAPI
@@ -10,13 +11,14 @@ from app.modules.health.router import router as health_router
 from app.modules.auth.router import router as auth_router
 from app.modules.products.router import router as product_router
 from app.modules.roles.router import router as roles_router
+from app.modules.users.router import router as users_router
 
 app = FastAPI(
     title="Store Management API - FastAPI",
     description="API quản lý cửa hàng tiện lợi mini",
     version="1.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -37,7 +39,9 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(product_router)
 app.include_router(roles_router)
+app.include_router(users_router)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

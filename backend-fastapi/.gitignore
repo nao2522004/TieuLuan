@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+danh-gia-hien-trang-ke-hoach-fastapi-nestjs.md
 
 # C Extensions
 *.so
