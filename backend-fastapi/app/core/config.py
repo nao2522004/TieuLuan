@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     )
     REDIS_URL: str = Field(default="redis://localhost:6381")
 
-    JWT_SECRET: str = Field(default="super_secret_jwt_key_store_fastapi_2026")
+    JWT_ACCESS_SECRET: str = Field(default="super_secret_jwt_key_store_fastapi_2026")
+    JWT_REFRESH_SECRET: str = Field(default="super_secret_refresh_jwt_key_store_fastapi_2026")
+    JWT_SECRET: str = Field(default="super_secret_jwt_key_store_fastapi_2026")  # Alias cho tương thích ngược
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_EXPIRATION: int = Field(default=3600)  
     REFRESH_TOKEN_EXPIRATION: int = Field(default=604800)  # 7 days

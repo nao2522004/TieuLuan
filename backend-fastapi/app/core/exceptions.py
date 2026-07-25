@@ -11,9 +11,6 @@ logger = logging.getLogger("ExceptionFilter")
 
 
 class AppException(Exception):
-    """Lỗi nghiệp vụ - luôn có error_code riêng, KHÔNG bị đè thành INTERNAL_ERROR
-    trừ khi thực sự không xác định được (Mục 5.1 - pass-through error code)."""
-
     def __init__(self, error_code: str, status_code: int, message: str):
         self.error_code = error_code
         self.status_code = status_code
@@ -40,12 +37,9 @@ def _now_iso() -> str:
 
 
 def _flatten_validation_errors(errors: list) -> str:
-    """Map lỗi Pydantic sang format chung '<field>: <lý do>' (Mục 4 ruleset -
-    KHÔNG để lộ format mảng loc/msg/type mặc định của Pydantic ra API)."""
     parts = []
     for err in errors:
         loc = err.get("loc", [])
-        # bỏ phần "body"/"query"/"path" đầu tiên trong loc cho gọn
         field = ".".join(str(p) for p in loc if p not in ("body", "query", "path"))
         parts.append(f"{field}: {err.get('msg')}")
     return ", ".join(parts)
