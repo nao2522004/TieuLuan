@@ -1,6 +1,6 @@
 import re
+from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from typing import Optional
 from app.core.exceptions import BusinessException
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -31,7 +31,7 @@ class LoginDto(BaseModel):
 class RefreshTokenDto(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    refresh_token: str = Field(..., description="Refresh Token JWT")
+    refresh_token: str = Field(..., description="Refresh token dạng hex 96 ký tự")
 
     @model_validator(mode="after")
     def _validate(self):
@@ -42,15 +42,34 @@ class RefreshTokenDto(BaseModel):
         return self
 
 
-class UserAuthPayload(BaseModel):
-    id: int
-    email: str
-    full_name: str
-    role: str
+class PublicUserDto(BaseModel):
+    id: int = Field(..., examples=[1])
+    full_name: str = Field(..., examples=["Quản trị viên"])
+    email: str = Field(..., examples=["admin@store.local"])
+    roles: List[str] = Field(
+        ...,
+        examples=[["admin"]],
+        description="Danh sách roles của user — 1 user có thể có nhiều role đồng thời.",
+    )
+    is_active: bool = Field(..., examples=[True])
+    branch_id: Optional[int] = Field(
+        None,
+        examples=[1],
+        description="ID chi nhánh — null nếu là admin toàn hệ thống.",
+    )
+    created_at: str = Field(..., examples=["2026-07-11T10:00:00.000Z"])
 
 
-class LoginResponseDto(BaseModel):
+class LoginDataDto(BaseModel):
+    user: PublicUserDto
+    access_token: str = Field(..., examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."])
+    refresh_token: str = Field(..., examples=["9f1c2e4b7a...(hex 96 ký tự)"])
+
+
+class RefreshResultDto(BaseModel):
     access_token: str
     refresh_token: str
-    token_type: str = "Bearer"
-    user: UserAuthPayload
+
+
+class MessageResultDto(BaseModel):
+    message: str

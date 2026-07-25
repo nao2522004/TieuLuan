@@ -1,7 +1,14 @@
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.session import get_db
-from app.modules.auth.schemas import LoginDto, RefreshTokenDto
+from app.modules.auth.schemas import (
+    LoginDto,
+    RefreshTokenDto,
+    LoginDataDto,
+    RefreshResultDto,
+    MessageResultDto,
+)
 from app.modules.auth.service import AuthService
 from app.modules.auth.rate_limit import login_rate_limiter
 from app.common.schemas import ApiSuccessResponse
@@ -12,8 +19,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post(
     "/login",
     status_code=status.HTTP_200_OK,
-    response_model=ApiSuccessResponse[dict],
-    summary="Đăng nhập tài khoản",
+    response_model=ApiSuccessResponse[LoginDataDto],
+    summary="Đăng nhập - dùng luôn tài khoản seed sẵn để test",
     dependencies=[Depends(login_rate_limiter)],
 )
 async def login(dto: LoginDto, request: Request, db: AsyncSession = Depends(get_db)):
@@ -28,8 +35,8 @@ async def login(dto: LoginDto, request: Request, db: AsyncSession = Depends(get_
 @router.post(
     "/logout",
     status_code=status.HTTP_200_OK,
-    response_model=ApiSuccessResponse[dict],
-    summary="Đăng xuất - Thu hồi refresh token",
+    response_model=ApiSuccessResponse[MessageResultDto],
+    summary="Đăng xuất - thu hồi refresh token hiện tại",
 )
 async def logout(dto: RefreshTokenDto, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
@@ -40,8 +47,8 @@ async def logout(dto: RefreshTokenDto, db: AsyncSession = Depends(get_db)):
 @router.post(
     "/refresh",
     status_code=status.HTTP_200_OK,
-    response_model=ApiSuccessResponse[dict],
-    summary="Cấp access token mới",
+    response_model=ApiSuccessResponse[RefreshResultDto],
+    summary="Cấp access token mới từ refresh token",
 )
 async def refresh(dto: RefreshTokenDto, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)

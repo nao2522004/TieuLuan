@@ -1,8 +1,7 @@
-from httptools.parser import url_parser
 import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -10,8 +9,17 @@ from app.core.security import verify_password, create_access_token
 from app.core.exceptions import BusinessException
 from app.core.config import settings
 from app.modules.users.service import UserService
+from app.modules.users.models import User
 from app.modules.auth.models import RefreshToken
-from app.modules.auth.schemas import LoginDto, LoginResponseDto, UserAuthPayload
+from app.modules.auth.schemas import LoginDto
+
+
+def _user_roles(user: User) -> List[str]:
+    return [r.code for r in user.roles] if user.roles else []
+
+
+def _pwd_hash_claim(user: User) -> Optional[str]:
+    return user.password_hash[-10:] if user.password_hash else None
 
 
 class AuthService:
@@ -20,7 +28,10 @@ class AuthService:
         self.user_service = UserService(db)
 
     async def login(
-        self, dto: LoginDto, user_agent: Optional[str] = None, ip: Optional[str] = None
+        self,
+        dto: LoginDto,
+        user_agent: Optional[str] = None,
+        ip: Optional[str] = None,
     ) -> Dict[str, Any]:
         user = await self.user_service.find_by_email(dto.email)
 
@@ -43,7 +54,8 @@ class AuthService:
         if not verify_password(dto.password, user.password_hash):
             raise invalid_credentials()
 
-        roles = [r.code for r in user.roles] if user.roles else []
+        roles = _user_roles(user)
+
         access_token = create_access_token(
             subject=user.id,
             extra_claims={
@@ -56,15 +68,7 @@ class AuthService:
         refresh_token = await self._issue_refresh_token(user.id, user_agent, ip)
 
         return {
-            "user": {
-                "id": user.id,
-                "full_name": user.full_name,
-                "email": user.email,
-                "roles": roles,
-                "is_active": user.is_active,
-                "branch_id": user.branch_id,
-                "created_at": user.created_at.isoformat(),
-            },
+            "user": self._to_public_user(user, roles),
             "access_token": access_token,
             "refresh_token": refresh_token,
         }
@@ -89,7 +93,7 @@ class AuthService:
         await self.db.commit()
         return raw_token
 
-    async def refresh_token(self, raw_refresh_token: str) -> Dict[str, Any]:
+    async def refresh_token(self, raw_refresh_token: str) -> Dict[str, str]:
         token_hash = hashlib.sha256(raw_refresh_token.encode()).hexdigest()
         stmt = select(RefreshToken).where(RefreshToken.token_hash == token_hash)
         res = await self.db.execute(stmt)
@@ -115,7 +119,7 @@ class AuthService:
         stored.revoked_at = datetime.now(timezone.utc)
         await self.db.commit()
 
-        roles = [r.code for r in user.roles] if user.roles else []
+        roles = _user_roles(user)
         new_access_token = create_access_token(
             subject=user.id,
             extra_claims={
@@ -141,6 +145,13 @@ class AuthService:
 
         return {"message": "Đăng xuất thành công."}
 
-
-def _pwd_hash_claim(user) -> Optional[str]:
-    return user.password_hash[-10:] if user.password_hash else None
+    def _to_public_user(self, user: User, roles: List[str]) -> Dict[str, Any]:
+        return {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "roles": roles,
+            "is_active": user.is_active,
+            "branch_id": user.branch_id,
+            "created_at": user.created_at.isoformat(),
+        }

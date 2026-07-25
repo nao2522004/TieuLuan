@@ -12,6 +12,8 @@ from app.modules.auth.router import router as auth_router
 from app.modules.products.router import router as product_router
 from app.modules.roles.router import router as roles_router
 from app.modules.users.router import router as users_router
+from app.modules.branches.router import router as branches_router
+from app.modules.categories.router import router as categories_router
 
 app = FastAPI(
     title="Store Management API - FastAPI",
@@ -40,6 +42,8 @@ app.include_router(auth_router)
 app.include_router(product_router)
 app.include_router(roles_router)
 app.include_router(users_router)
+app.include_router(branches_router)
+app.include_router(categories_router)
 
 if __name__ == "__main__":
     import uvicorn
