@@ -17,6 +17,7 @@ from app.modules.categories.router import router as categories_router
 from app.modules.expiry_pricing.router import router as expiry_pricing_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.stocktakes.router import router as stocktakes_router
+from app.modules.shifts.router import router as shifts_router
 
 app = FastAPI(
     title="Store Management API - FastAPI",
@@ -50,6 +51,7 @@ app.include_router(categories_router)
 app.include_router(expiry_pricing_router)
 app.include_router(inventory_router)
 app.include_router(stocktakes_router)
+app.include_router(shifts_router)
 
 if __name__ == "__main__":
     import uvicorn
