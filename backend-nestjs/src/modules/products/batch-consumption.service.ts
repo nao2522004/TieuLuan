@@ -383,9 +383,10 @@ export class BatchConsumptionService {
         .getOne();
 
       if (batch) {
-        batch.quantityRemaining += remainingToRestore;
+        const restoreAmount = Math.min(ib.quantityTaken, remainingToRestore);
+        batch.quantityRemaining += restoreAmount;
         await batchRepo.save(batch);
-        remainingToRestore = 0;
+        remainingToRestore -= restoreAmount;
       }
     }
 
