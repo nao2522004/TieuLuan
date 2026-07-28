@@ -267,3 +267,65 @@ class BatchConsumptionService:
             await self._refresh_nearest_expiry(product)
 
         await self.db.flush()
+
+    async def restore_quantity_for_returned_item(
+        self, order_item_id: int, product_id: int, quantity_to_restore: int
+    ) -> None:
+        if quantity_to_restore <= 0:
+            return
+
+        stmt = (
+            select(Product)
+            .where(Product.id == product_id, Product.deleted_at.is_(None))
+            .with_for_update()
+        )
+        product = (await self.db.execute(stmt)).scalars().first()
+        if not product:
+            return
+
+        item_batches_stmt = (
+            select(OrderItemBatch)
+            .where(OrderItemBatch.order_item_id == order_item_id)
+            .order_by(OrderItemBatch.id.desc())
+        )
+        item_batches = list((await self.db.execute(item_batches_stmt)).scalars().all())
+
+        remaining_to_restore = quantity_to_restore
+
+        for ib in item_batches:
+            if remaining_to_restore <= 0:
+                break
+
+            batch_stmt = (
+                select(ProductBatch)
+                .where(ProductBatch.id == ib.batch_id)
+                .with_for_update()
+            )
+            batch = (await self.db.execute(batch_stmt)).scalars().first()
+
+            if batch:
+                restore_amount = min(ib.quantity_taken, remaining_to_restore)
+                batch.quantity_remaining += restore_amount
+                remaining_to_restore -= restore_amount
+
+        if remaining_to_restore > 0:
+            fallback_stmt = (
+                select(ProductBatch)
+                .where(
+                    ProductBatch.product_id == product_id,
+                    ProductBatch.deleted_at.is_(None),
+                )
+                .order_by(
+                    ProductBatch.expiry_date.asc().nulls_last(),
+                    ProductBatch.id.desc(),
+                )
+                .with_for_update()
+            )
+            fallback_batch = (await self.db.execute(fallback_stmt)).scalars().first()
+            if fallback_batch:
+                fallback_batch.quantity_remaining += remaining_to_restore
+
+        await self.db.flush()
+
+        product.stock_quantity += quantity_to_restore
+        await self._refresh_nearest_expiry(product)

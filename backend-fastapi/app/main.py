@@ -21,6 +21,7 @@ from app.modules.shifts.router import router as shifts_router
 from app.modules.shifts.router import router as shifts_router
 from app.modules.promotions.router import router as promotions_router
 from app.modules.orders.router import router as orders_router
+from app.modules.returns.router import router as returns_router
 
 app = FastAPI(
     title="Store Management API - FastAPI",
@@ -63,6 +64,7 @@ app.include_router(shifts_router)
 app.include_router(shifts_router)
 app.include_router(promotions_router)
 app.include_router(orders_router)
+app.include_router(returns_router)
 
 if __name__ == "__main__":
     import uvicorn
