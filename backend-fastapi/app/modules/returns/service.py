@@ -23,7 +23,6 @@ class ReturnService:
         self.user_service = UserService(db)
 
     async def create(self, dto: CreateReturnDto, user: AuthUser) -> Dict[str, Any]:
-        # Lock order_item trước (đúng thứ tự khóa như bên NestJS)
         order_item = await self.crud.lock_order_item(dto.order_item_id)
         if not order_item:
             raise BusinessException(
@@ -93,7 +92,7 @@ class ReturnService:
         await self.db.commit()
         await self.db.refresh(entity)
 
-        # Side-effect (evict cache) SAU KHI transaction chính đã commit
+        # Side-effect (evict cache)
         try:
             await self.product_service.evict_cache_for_product(order_item.product_id)
         except Exception:

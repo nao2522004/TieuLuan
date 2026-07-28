@@ -30,5 +30,19 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = Field(default="development")
 
+    ZALOPAY_APP_ID: str = Field(default="2553")
+    ZALOPAY_MAC_KEY: str = Field(default="PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL")
+    ZALOPAY_REFUND_KEY: str = Field(default="kLtgPl8HHhfvMuDHPwKfgfsY4Ydm9eIz")
+    ZALOPAY_CREATE_ORDER_URL: str = Field(
+        default="https://sb-openapi.zalopay.vn/v2/create"
+    )
+    ZALOPAY_QUERY_ORDER_URL: str = Field(
+        default="https://sb-openapi.zalopay.vn/v2/query"
+    )
+    ZALOPAY_SERVER_URL: str = Field(
+        default="https://clash-washtub-smashing.ngrok-free.dev"
+    )
+    ZALOPAY_CLIENT_URL: str = Field(default="http://localhost:3000")
+
 
 settings = Settings()
