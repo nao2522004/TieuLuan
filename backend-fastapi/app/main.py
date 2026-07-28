@@ -20,6 +20,7 @@ from app.modules.stocktakes.router import router as stocktakes_router
 from app.modules.shifts.router import router as shifts_router
 from app.modules.shifts.router import router as shifts_router
 from app.modules.promotions.router import router as promotions_router
+from app.modules.orders.router import router as orders_router
 
 app = FastAPI(
     title="Store Management API - FastAPI",
@@ -31,7 +32,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:4173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,6 +62,7 @@ app.include_router(stocktakes_router)
 app.include_router(shifts_router)
 app.include_router(shifts_router)
 app.include_router(promotions_router)
+app.include_router(orders_router)
 
 if __name__ == "__main__":
     import uvicorn

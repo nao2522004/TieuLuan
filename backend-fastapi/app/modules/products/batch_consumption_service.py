@@ -7,6 +7,7 @@ from sqlalchemy.future import select
 
 from app.core.exceptions import BusinessException
 from app.modules.products.models import Product, ProductBatch
+from app.modules.orders.models import OrderItemBatch
 
 
 class SimulatedBatch(TypedDict):
@@ -235,4 +236,34 @@ class BatchConsumptionService:
     async def _refresh_nearest_expiry(self, product: Product) -> None:
         earliest = await self._earliest_batch(product.id)
         product.nearest_expiry_date = earliest.expiry_date if earliest else None
+        await self.db.flush()
+
+    async def restore_exact_batches(self, order_item_id: int, product_id: int) -> None:
+        stmt = (
+            select(OrderItemBatch)
+            .where(OrderItemBatch.order_item_id == order_item_id)
+            .order_by(OrderItemBatch.batch_id.asc())
+        )
+        item_batches = list((await self.db.execute(stmt)).scalars().all())
+        if not item_batches:
+            return
+
+        product = await self._lock_product_or_throw(product_id)
+
+        total_restored = 0
+        for ib in item_batches:
+            batch_stmt = (
+                select(ProductBatch)
+                .where(ProductBatch.id == ib.batch_id)
+                .with_for_update()
+            )
+            batch = (await self.db.execute(batch_stmt)).scalars().first()
+            if batch:
+                batch.quantity_remaining += ib.quantity_taken
+                total_restored += ib.quantity_taken
+
+        if total_restored > 0:
+            product.stock_quantity += total_restored
+            await self._refresh_nearest_expiry(product)
+
         await self.db.flush()

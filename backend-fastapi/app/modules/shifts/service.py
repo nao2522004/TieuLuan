@@ -116,7 +116,9 @@ class ShiftsService:
                 raise self._already_open_error()
             raise
 
-        return self._to_dto(saved, branch.name, user.full_name)
+        shift_with_users = await self.crud.get_with_users(saved.id)
+
+        return self._to_dto(shift_with_users or saved, branch.name, user.full_name)
 
     async def close(
         self, shift_id: int, dto: CloseShiftDto, user: AuthUser
