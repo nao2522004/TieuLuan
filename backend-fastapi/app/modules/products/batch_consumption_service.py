@@ -243,6 +243,7 @@ class BatchConsumptionService:
             select(OrderItemBatch)
             .where(OrderItemBatch.order_item_id == order_item_id)
             .order_by(OrderItemBatch.batch_id.asc())
+            .with_for_update()
         )
         item_batches = list((await self.db.execute(stmt)).scalars().all())
         if not item_batches:
@@ -252,6 +253,10 @@ class BatchConsumptionService:
 
         total_restored = 0
         for ib in item_batches:
+            amount_to_restore = ib.quantity_taken - ib.restored_quantity
+            if amount_to_restore <= 0:
+                continue
+
             batch_stmt = (
                 select(ProductBatch)
                 .where(ProductBatch.id == ib.batch_id)
@@ -259,8 +264,10 @@ class BatchConsumptionService:
             )
             batch = (await self.db.execute(batch_stmt)).scalars().first()
             if batch:
-                batch.quantity_remaining += ib.quantity_taken
-                total_restored += ib.quantity_taken
+                batch.quantity_remaining += amount_to_restore
+                total_restored += amount_to_restore
+
+            ib.restored_quantity = ib.quantity_taken
 
         if total_restored > 0:
             product.stock_quantity += total_restored
@@ -287,6 +294,7 @@ class BatchConsumptionService:
             select(OrderItemBatch)
             .where(OrderItemBatch.order_item_id == order_item_id)
             .order_by(OrderItemBatch.id.desc())
+            .with_for_update()
         )
         item_batches = list((await self.db.execute(item_batches_stmt)).scalars().all())
 
@@ -296,17 +304,23 @@ class BatchConsumptionService:
             if remaining_to_restore <= 0:
                 break
 
+            available_in_this_batch = ib.quantity_taken - ib.restored_quantity
+            if available_in_this_batch <= 0:
+                continue
+
+            restore_amount = min(available_in_this_batch, remaining_to_restore)
+
             batch_stmt = (
                 select(ProductBatch)
                 .where(ProductBatch.id == ib.batch_id)
                 .with_for_update()
             )
             batch = (await self.db.execute(batch_stmt)).scalars().first()
-
             if batch:
-                restore_amount = min(ib.quantity_taken, remaining_to_restore)
                 batch.quantity_remaining += restore_amount
-                remaining_to_restore -= restore_amount
+
+            ib.restored_quantity += restore_amount
+            remaining_to_restore -= restore_amount
 
         if remaining_to_restore > 0:
             fallback_stmt = (
