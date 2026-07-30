@@ -35,4 +35,5 @@ export interface CreateAdjustmentPayload {
   reason: string;
   note?: string;
   batch_id?: number;
+  batches?: { batch_id: number; quantity: number }[];
 }
