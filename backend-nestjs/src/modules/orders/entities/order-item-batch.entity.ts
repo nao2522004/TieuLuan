@@ -35,6 +35,9 @@ export class OrderItemBatch {
   @Column({ name: "quantity_taken", type: "integer" })
   quantityTaken: number;
 
+  @Column({ name: "restored_quantity", type: "integer", default: 0 })
+  restoredQuantity: number;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;
 }

@@ -89,7 +89,34 @@ export class InventoryService {
     dto: CreateAdjustmentDto,
     user: AuthUser,
   ): Promise<InventoryTransactionDto> {
-    const saved = await this.dataSource.transaction(async (manager) => {
+    if (dto.batch_id && dto.batches?.length) {
+      throw new BusinessException(
+        "VALIDATION_ERROR",
+        400,
+        "Không được truyền đồng thời 'batch_id' và 'batches'.",
+      );
+    }
+
+    if (dto.batches?.length) {
+      const batchIds = dto.batches.map((b) => b.batch_id);
+      if (new Set(batchIds).size !== batchIds.length) {
+        throw new BusinessException(
+          "VALIDATION_ERROR",
+          400,
+          "batches: batch_id không được trùng lặp giữa các lô.",
+        );
+      }
+      const sum = dto.batches.reduce((s, b) => s + b.quantity, 0);
+      if (sum !== dto.quantity) {
+        throw new BusinessException(
+          "VALIDATION_ERROR",
+          400,
+          `Tổng số lượng theo từng lô (${sum}) phải bằng đúng quantity tổng (${dto.quantity}).`,
+        );
+      }
+    }
+
+    const savedFirst = await this.dataSource.transaction(async (manager) => {
       const productRepo = manager.getRepository(Product);
 
       const product = await productRepo
@@ -107,7 +134,6 @@ export class InventoryService {
         );
       }
 
-      // Kiểm tra chi nhánh
       if (!user.roles.includes("admin") && product.branchId !== user.branchId) {
         throw new BusinessException(
           "FORBIDDEN",
@@ -116,19 +142,41 @@ export class InventoryService {
         );
       }
 
-      // Trừ kho: Nếu chọn lô cụ thể thì trừ lô đó, ngược lại trừ theo nguyên tắc FEFO
-      const consumed = dto.batch_id
-        ? await this.batchConsumptionService.consumeSpecificBatch(
-            manager,
-            dto.product_id,
-            dto.batch_id,
-            dto.quantity,
-          )
-        : await this.batchConsumptionService.consumeFefo(
-            manager,
-            dto.product_id,
-            dto.quantity,
-          );
+      let consumed: {
+        batchId: number;
+        quantityTaken: number;
+        expiryDate: string | null;
+      }[];
+
+      if (dto.batches?.length) {
+        const sortedBatches = [...dto.batches].sort(
+          (a, b) => a.batch_id - b.batch_id,
+        );
+        consumed = [];
+        for (const b of sortedBatches) {
+          const result =
+            await this.batchConsumptionService.consumeSpecificBatch(
+              manager,
+              dto.product_id,
+              b.batch_id,
+              b.quantity,
+            );
+          consumed.push(...result);
+        }
+      } else if (dto.batch_id) {
+        consumed = await this.batchConsumptionService.consumeSpecificBatch(
+          manager,
+          dto.product_id,
+          dto.batch_id,
+          dto.quantity,
+        );
+      } else {
+        consumed = await this.batchConsumptionService.consumeFefo(
+          manager,
+          dto.product_id,
+          dto.quantity,
+        );
+      }
 
       const txs = consumed.map((c) =>
         manager.getRepository(InventoryTransaction).create({
@@ -144,13 +192,15 @@ export class InventoryService {
         }),
       );
 
-      const savedTxs = await manager.getRepository(InventoryTransaction).save(txs);
+      const savedTxs = await manager
+        .getRepository(InventoryTransaction)
+        .save(txs);
       return savedTxs[0];
     });
 
     await this.productsService.evictCacheForProduct(dto.product_id);
 
-    return this.toDto(saved);
+    return this.toDto(savedFirst);
   }
 
   async findAllPaginated(
@@ -207,7 +257,11 @@ export class InventoryService {
 
     return {
       data: rows.entities.map((r, i) =>
-        this.toDto(r, rows.raw[i]?.p_name ?? null, rows.raw[i]?.p_barcode ?? null),
+        this.toDto(
+          r,
+          rows.raw[i]?.p_name ?? null,
+          rows.raw[i]?.p_barcode ?? null,
+        ),
       ),
       meta: {
         current_page: page,

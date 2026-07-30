@@ -27,6 +27,7 @@ import { OrderItem } from "../orders/entities/order-item.entity";
 import { Product } from "../products/entities/product.entity";
 import { Return } from "../returns/entities/return.entity";
 import { ProductsService } from "../products/products.service";
+import { BatchConsumptionService } from "../products/batch-consumption.service";
 
 @ApiTags("zalopay")
 @Controller("payment/zalopay")
@@ -36,6 +37,7 @@ export class ZaloPayController {
   constructor(
     private readonly zaloPayService: ZaloPayService,
     private readonly productsService: ProductsService,
+    private readonly batchConsumptionService: BatchConsumptionService, // MỚI
     @InjectDataSource()
     private readonly dataSource: DataSource,
     @InjectRepository(Return)
@@ -100,7 +102,6 @@ export class ZaloPayController {
         async (manager) => {
           const orderRepo = manager.getRepository(Order);
           const itemRepo = manager.getRepository(OrderItem);
-          const productRepo = manager.getRepository(Product);
 
           const order = await orderRepo
             .createQueryBuilder("o")
@@ -124,15 +125,11 @@ export class ZaloPayController {
           );
 
           for (const item of sortedItems) {
-            const product = await productRepo
-              .createQueryBuilder("p")
-              .setLock("pessimistic_write")
-              .where("p.id = :id", { id: item.productId })
-              .getOne();
-            if (product) {
-              product.stockQuantity += item.quantity;
-              await productRepo.save(product);
-            }
+            await this.batchConsumptionService.restoreExactBatches(
+              manager,
+              item.id,
+              item.productId,
+            );
           }
 
           order.status = "cancelled";

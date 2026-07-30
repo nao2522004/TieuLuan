@@ -263,10 +263,13 @@ export class BatchConsumptionService {
     orderItemId: number,
     productId: number,
   ): Promise<void> {
-    const itemBatches = await manager.getRepository(OrderItemBatch).find({
-      where: { orderItemId },
-      order: { batchId: "ASC" },
-    });
+    const itemBatches = await manager
+      .getRepository(OrderItemBatch)
+      .createQueryBuilder("oib")
+      .setLock("pessimistic_write")
+      .where("oib.order_item_id = :orderItemId", { orderItemId })
+      .orderBy("oib.batch_id", "ASC")
+      .getMany();
 
     if (itemBatches.length === 0) return;
 
@@ -278,9 +281,13 @@ export class BatchConsumptionService {
       .getOne();
 
     const batchRepo = manager.getRepository(ProductBatch);
+    const itemBatchRepo = manager.getRepository(OrderItemBatch);
     let totalRestored = 0;
 
     for (const ib of itemBatches) {
+      const amountToRestore = ib.quantityTaken - ib.restoredQuantity;
+      if (amountToRestore <= 0) continue;
+
       const batch = await batchRepo
         .createQueryBuilder("pb")
         .setLock("pessimistic_write")
@@ -288,10 +295,13 @@ export class BatchConsumptionService {
         .getOne();
 
       if (batch) {
-        batch.quantityRemaining += ib.quantityTaken;
+        batch.quantityRemaining += amountToRestore;
         await batchRepo.save(batch);
-        totalRestored += ib.quantityTaken;
+        totalRestored += amountToRestore;
       }
+
+      ib.restoredQuantity = ib.quantityTaken;
+      await itemBatchRepo.save(ib);
     }
 
     if (product && totalRestored > 0) {
@@ -366,15 +376,24 @@ export class BatchConsumptionService {
     if (!product) return;
 
     const batchRepo = manager.getRepository(ProductBatch);
-    const itemBatches = await manager.getRepository(OrderItemBatch).find({
-      where: { orderItemId },
-      order: { id: "DESC" },
-    });
+    const itemBatchRepo = manager.getRepository(OrderItemBatch);
+
+    const itemBatches = await itemBatchRepo
+      .createQueryBuilder("oib")
+      .setLock("pessimistic_write")
+      .where("oib.order_item_id = :orderItemId", { orderItemId })
+      .orderBy("oib.id", "DESC")
+      .getMany();
 
     let remainingToRestore = quantityToRestore;
 
     for (const ib of itemBatches) {
       if (remainingToRestore <= 0) break;
+
+      const availableInThisBatch = ib.quantityTaken - ib.restoredQuantity;
+      if (availableInThisBatch <= 0) continue;
+
+      const restoreAmount = Math.min(availableInThisBatch, remainingToRestore);
 
       const batch = await batchRepo
         .createQueryBuilder("pb")
@@ -383,11 +402,14 @@ export class BatchConsumptionService {
         .getOne();
 
       if (batch) {
-        const restoreAmount = Math.min(ib.quantityTaken, remainingToRestore);
         batch.quantityRemaining += restoreAmount;
         await batchRepo.save(batch);
-        remainingToRestore -= restoreAmount;
       }
+
+      ib.restoredQuantity += restoreAmount;
+      await itemBatchRepo.save(ib);
+
+      remainingToRestore -= restoreAmount;
     }
 
     if (remainingToRestore > 0) {
