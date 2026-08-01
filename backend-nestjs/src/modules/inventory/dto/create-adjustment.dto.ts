@@ -37,17 +37,17 @@ export class CreateAdjustmentDto {
   @IsNotEmpty({ message: "không được để trống" })
   product_id: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 5,
     description:
-      "Tổng số lượng hao hụt/hủy (phải > 0). Nếu truyền 'batches', tổng " +
-      "quantity của các lô trong 'batches' bắt buộc phải bằng đúng giá trị này.",
+      "Tổng số lượng hao hụt/hủy (phải > 0). Bắt buộc khi không truyền 'batches'. " +
+      "Nếu truyền 'batches', có thể bỏ qua hoặc truyền đúng bằng tổng 'batches'.",
   })
+  @IsOptional()
   @Type(() => Number)
   @IsInt({ message: "phải là số nguyên" })
   @IsPositive({ message: "phải là số nguyên dương" })
-  @IsNotEmpty({ message: "không được để trống" })
-  quantity: number;
+  quantity?: number;
 
   @ApiProperty({
     example: "Hỏng vỡ bao bì",

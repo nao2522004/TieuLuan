@@ -97,6 +97,14 @@ export class InventoryService {
       );
     }
 
+    if (!dto.batches?.length && (dto.quantity === undefined || dto.quantity === null)) {
+      throw new BusinessException(
+        "VALIDATION_ERROR",
+        400,
+        "Phải cung cấp 'quantity' (trừ FEFO/một lô) hoặc 'batches' (trừ nhiều lô).",
+      );
+    }
+
     if (dto.batches?.length) {
       const batchIds = dto.batches.map((b) => b.batch_id);
       if (new Set(batchIds).size !== batchIds.length) {
@@ -106,13 +114,15 @@ export class InventoryService {
           "batches: batch_id không được trùng lặp giữa các lô.",
         );
       }
-      const sum = dto.batches.reduce((s, b) => s + b.quantity, 0);
-      if (sum !== dto.quantity) {
-        throw new BusinessException(
-          "VALIDATION_ERROR",
-          400,
-          `Tổng số lượng theo từng lô (${sum}) phải bằng đúng quantity tổng (${dto.quantity}).`,
-        );
+      if (dto.quantity !== undefined && dto.quantity !== null) {
+        const sum = dto.batches.reduce((s, b) => s + b.quantity, 0);
+        if (sum !== dto.quantity) {
+          throw new BusinessException(
+            "VALIDATION_ERROR",
+            400,
+            `Tổng số lượng theo từng lô (${sum}) phải bằng đúng quantity tổng (${dto.quantity}).`,
+          );
+        }
       }
     }
 
@@ -168,13 +178,13 @@ export class InventoryService {
           manager,
           dto.product_id,
           dto.batch_id,
-          dto.quantity,
+          dto.quantity!,
         );
       } else {
         consumed = await this.batchConsumptionService.consumeFefo(
           manager,
           dto.product_id,
-          dto.quantity,
+          dto.quantity!,
         );
       }
 

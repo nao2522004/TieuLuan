@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.core.exceptions import BusinessException
 
-from app.modules.stocktakes.models import Stocktake, StocktakeItem
+from app.modules.stocktakes.models import Stocktake, StocktakeItem, StocktakeItemBatch
 
 
 class StocktakeCRUD:
@@ -95,6 +95,45 @@ class StocktakeCRUD:
     async def delete_item(self, item: StocktakeItem) -> None:
         await self.db.delete(item)
         await self.db.commit()
+
+    async def upsert_item_batches(
+        self,
+        stocktake_item_id: int,
+        product_id: int,
+        batch_counts: List[Dict[str, Any]],
+    ) -> None:
+        for bc in batch_counts:
+            await self.db.execute(
+                text(
+                    """
+                    INSERT INTO stocktake_item_batches
+                        (stocktake_item_id, batch_id, system_quantity, counted_quantity, difference)
+                    VALUES (:item_id, :batch_id, :sys_qty, :cnt_qty, :diff)
+                    ON CONFLICT (stocktake_item_id, batch_id)
+                    DO UPDATE SET
+                        counted_quantity = EXCLUDED.counted_quantity,
+                        difference = EXCLUDED.counted_quantity - stocktake_item_batches.system_quantity
+                    """
+                ),
+                {
+                    "item_id": stocktake_item_id,
+                    "batch_id": bc["batch_id"],
+                    "sys_qty": bc["system_quantity"],
+                    "cnt_qty": bc["counted_quantity"],
+                    "diff": bc["counted_quantity"] - bc["system_quantity"],
+                },
+            )
+
+    async def get_item_batches(
+        self, stocktake_item_id: int
+    ) -> List[StocktakeItemBatch]:
+        """Tải tất cả chi tiết lô của một dòng kiểm kê."""
+        stmt = (
+            select(StocktakeItemBatch)
+            .where(StocktakeItemBatch.stocktake_item_id == stocktake_item_id)
+            .order_by(StocktakeItemBatch.batch_id.asc())
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
 
     async def count_and_list(
         self, conditions: list, page: int, limit: int

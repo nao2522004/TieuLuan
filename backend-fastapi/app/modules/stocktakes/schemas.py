@@ -18,11 +18,25 @@ class CreateStocktakeDto(BaseModel):
     )
 
 
+class BatchCountDto(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    batch_id: int = Field(..., gt=0, description="ID lô hàng")
+    counted_quantity: int = Field(..., ge=0, description="Số đếm thực tế của lô này")
+
+
 class CreateStocktakeItemDto(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product_id: int = Field(..., gt=0, description="ID sản phẩm cần kiểm")
-    counted_quantity: int = Field(..., ge=0, description="Số lượng đếm thực tế")
+    counted_quantity: int = Field(..., ge=0, description="Số lượng đếm thực tế (tổng tất cả lô)")
+    batch_counts: Optional[List[BatchCountDto]] = Field(
+        default=None,
+        description=(
+            "Chi tiết số đếm theo từng lô. Nếu gửi, backend sẽ cộng/trừ đúng lô khi "
+            "chốt phiên thay vì dùng FEFO mù. Tuỳ chọn — backward compatible."
+        ),
+    )
 
 
 class BulkCreateStocktakeItemDto(BaseModel):

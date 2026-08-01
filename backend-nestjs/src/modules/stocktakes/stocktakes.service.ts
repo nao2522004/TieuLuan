@@ -1,8 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
-import { DataSource, Repository, IsNull, In } from "typeorm";
+import { DataSource, EntityManager, Repository, IsNull, In } from "typeorm";
 import { Stocktake } from "./entities/stocktake.entity";
 import { StocktakeItem } from "./entities/stocktake-item.entity";
+import { StocktakeItemBatch } from "./entities/stocktake-item-batch.entity";
 import { Product } from "../products/entities/product.entity";
 import { InventoryTransaction } from "../inventory/entities/inventory-transaction.entity";
 import { CreateStocktakeDto } from "./dto/create-stocktake.dto";
@@ -34,6 +35,8 @@ export class StocktakesService {
     private readonly stocktakeRepository: Repository<Stocktake>,
     @InjectRepository(StocktakeItem)
     private readonly itemRepository: Repository<StocktakeItem>,
+    @InjectRepository(StocktakeItemBatch)
+    private readonly itemBatchRepository: Repository<StocktakeItemBatch>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     @InjectDataSource()
@@ -168,8 +171,20 @@ export class StocktakesService {
       );
 
       const row = rows[0];
+      const stocktakeItemId = parseInt(row.id, 10);
+
+      // Lưu chi tiết từng lô nếu client gửi batch_counts
+      if (dto.batch_counts && dto.batch_counts.length > 0) {
+        await this._upsertItemBatches(
+          manager,
+          stocktakeItemId,
+          dto.product_id,
+          dto.batch_counts,
+        );
+      }
+
       return {
-        id: parseInt(row.id, 10),
+        id: stocktakeItemId,
         stocktake_id: parseInt(row.stocktake_id, 10),
         product_id: parseInt(row.product_id, 10),
         system_quantity: row.system_quantity,
@@ -254,8 +269,20 @@ export class StocktakesService {
         );
 
         const row = rows[0];
+        const stocktakeItemId = parseInt(row.id, 10);
+
+        // Lưu chi tiết từng lô nếu client gửi batch_counts
+        if (dto.batch_counts && dto.batch_counts.length > 0) {
+          await this._upsertItemBatches(
+            manager,
+            stocktakeItemId,
+            dto.product_id,
+            dto.batch_counts,
+          );
+        }
+
         results.push({
-          id: parseInt(row.id, 10),
+          id: stocktakeItemId,
           stocktake_id: parseInt(row.stocktake_id, 10),
           product_id: parseInt(row.product_id, 10),
           system_quantity: row.system_quantity,
@@ -395,22 +422,138 @@ export class StocktakesService {
             continue;
           }
 
-          if (item.difference < 0) {
-            const consumed = await this.batchConsumptionService.consumeFefo(
-              manager,
-              item.productId,
-              Math.abs(item.difference),
-            );
+          const itemBatchRepo = manager.getRepository(StocktakeItemBatch);
+          const batchDetails = await itemBatchRepo.find({
+            where: { stocktakeItemId: item.id },
+          });
 
-            for (const c of consumed) {
+          if (batchDetails.length > 0) {
+            for (const bd of batchDetails) {
+              if (bd.difference === 0) continue;
+
+              const noteStr = stocktake.note
+                ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
+                : `Phiên kiểm kê #${stocktake.id}`;
+
+              if (bd.difference < 0) {
+                const consumed =
+                  await this.batchConsumptionService.consumeSpecificBatch(
+                    manager,
+                    item.productId,
+                    bd.batchId,
+                    Math.abs(bd.difference),
+                  );
+                for (const c of consumed) {
+                  await txRepo.save(
+                    txRepo.create({
+                      productId: item.productId,
+                      type: "OUT",
+                      source: "STOCKTAKE",
+                      reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
+                      quantity: c.quantityTaken,
+                      unitCost: null,
+                      batchId: c.batchId,
+                      note: noteStr,
+                      createdBy: user.id,
+                    }),
+                  );
+                }
+              } else {
+                // Lô này thừa — nhập thêm vào chính lô đó (cộng trực tiếp)
+                const batchRepo = manager.getRepository(ProductBatch);
+                const existingBatch = await batchRepo
+                  .createQueryBuilder("pb")
+                  .setLock("pessimistic_write")
+                  .where("pb.id = :id", { id: bd.batchId })
+                  .getOne();
+                if (existingBatch) {
+                  existingBatch.quantityRemaining += bd.difference;
+                  await batchRepo.save(existingBatch);
+
+                  // Cập nhật stock_quantity + nearest_expiry_date trên Product
+                  const pRepo = manager.getRepository(Product);
+                  const prod = await pRepo
+                    .createQueryBuilder("p")
+                    .setLock("pessimistic_write")
+                    .where("p.id = :id", { id: item.productId })
+                    .getOne();
+                  if (prod) {
+                    prod.stockQuantity += bd.difference;
+                    const earliest = await batchRepo
+                      .createQueryBuilder("pb")
+                      .where(
+                        "pb.product_id = :pid AND pb.deleted_at IS NULL AND pb.quantity_remaining > 0",
+                        { pid: item.productId },
+                      )
+                      .orderBy("pb.expiry_date", "ASC", "NULLS LAST")
+                      .addOrderBy("pb.id", "ASC")
+                      .getOne();
+                    prod.nearestExpiryDate = earliest
+                      ? earliest.expiryDate
+                      : null;
+                    await pRepo.save(prod);
+                  }
+
+                  await txRepo.save(
+                    txRepo.create({
+                      productId: item.productId,
+                      type: "IN",
+                      source: "STOCKTAKE",
+                      reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
+                      quantity: bd.difference,
+                      unitCost: null,
+                      batchId: existingBatch.id,
+                      note: noteStr,
+                      createdBy: user.id,
+                    }),
+                  );
+                }
+              }
+            }
+          } else {
+            // === Fallback: FEFO mù (không có batch_counts) — backward compat ===
+            if (item.difference < 0) {
+              const consumed = await this.batchConsumptionService.consumeFefo(
+                manager,
+                item.productId,
+                Math.abs(item.difference),
+              );
+
+              for (const c of consumed) {
+                const tx = txRepo.create({
+                  productId: item.productId,
+                  type: "OUT",
+                  source: "STOCKTAKE",
+                  reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
+                  quantity: c.quantityTaken,
+                  unitCost: null,
+                  batchId: c.batchId,
+                  note: stocktake.note
+                    ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
+                    : `Phiên kiểm kê #${stocktake.id}`,
+                  createdBy: user.id,
+                });
+                await txRepo.save(tx);
+              }
+            } else {
+              const batch = await this.batchConsumptionService.receiveBatch(
+                manager,
+                item.productId,
+                item.difference,
+                null,
+                0,
+                user.id,
+                `LÔ-KIỂMKÊ-${stocktake.id}-${item.productId}`,
+              );
+
               const tx = txRepo.create({
                 productId: item.productId,
-                type: "OUT",
+                type: "IN",
                 source: "STOCKTAKE",
                 reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
-                quantity: c.quantityTaken,
+                quantity: item.difference,
                 unitCost: null,
-                batchId: c.batchId,
+                batchId: batch.id,
                 note: stocktake.note
                   ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
                   : `Phiên kiểm kê #${stocktake.id}`,
@@ -418,31 +561,6 @@ export class StocktakesService {
               });
               await txRepo.save(tx);
             }
-          } else {
-            const batch = await this.batchConsumptionService.receiveBatch(
-              manager,
-              item.productId,
-              item.difference,
-              null,
-              0,
-              user.id,
-              `LÔ-KIỂMKÊ-${stocktake.id}-${item.productId}`,
-            );
-
-            const tx = txRepo.create({
-              productId: item.productId,
-              type: "IN",
-              source: "STOCKTAKE",
-              reason: `Chênh lệch kiểm kê (phiên #${stocktake.id})`,
-              quantity: item.difference,
-              unitCost: null,
-              batchId: batch.id,
-              note: stocktake.note
-                ? `Phiên kiểm kê #${stocktake.id}: ${stocktake.note}`
-                : `Phiên kiểm kê #${stocktake.id}`,
-              createdBy: user.id,
-            });
-            await txRepo.save(tx);
           }
         }
 
@@ -739,5 +857,43 @@ export class StocktakesService {
       batches: batches ?? [],
       batch_adjustments: adjustments ?? [],
     };
+  }
+
+  /**
+   * UPSERT chi tiết số đếm từng lô vào bảng stocktake_item_batches.
+   * Dùng raw SQL để tận dụng ON CONFLICT DO UPDATE (PostgreSQL upsert).
+   */
+  private async _upsertItemBatches(
+    manager: EntityManager,
+    stocktakeItemId: number,
+    productId: number,
+    batchCounts: { batch_id: number; counted_quantity: number }[],
+  ): Promise<void> {
+    const batchRepo = manager.getRepository(ProductBatch);
+
+    for (const bc of batchCounts) {
+      // Lấy system_quantity (tồn kho hiện tại) của lô này
+      const batch = await batchRepo.findOne({ where: { id: bc.batch_id } });
+      if (!batch || batch.productId !== productId) {
+        // Bỏ qua lô không thuộc sản phẩm này — tránh dữ liệu lạ
+        continue;
+      }
+
+      const systemQty = batch.quantityRemaining;
+      const diff = bc.counted_quantity - systemQty;
+
+      await manager.query(
+        `
+        INSERT INTO stocktake_item_batches
+          (stocktake_item_id, batch_id, system_quantity, counted_quantity, difference)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (stocktake_item_id, batch_id)
+        DO UPDATE SET
+          counted_quantity = EXCLUDED.counted_quantity,
+          difference       = EXCLUDED.counted_quantity - stocktake_item_batches.system_quantity
+        `,
+        [stocktakeItemId, bc.batch_id, systemQty, bc.counted_quantity, diff],
+      );
+    }
   }
 }

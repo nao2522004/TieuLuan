@@ -1,5 +1,3 @@
-from app.modules.products import batch_consumption_service
-from app.modules.products import batch_consumption_service
 import math
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -82,6 +80,16 @@ class StocktakesService:
             dto.counted_quantity,
             difference,
         )
+        stocktake_item_id: int = row["id"]
+
+        # Lưu chi tiết từng lô nếu client gửi batch_counts
+        if dto.batch_counts and len(dto.batch_counts) > 0:
+            await self._upsert_item_batches(
+                stocktake_item_id=stocktake_item_id,
+                product_id=dto.product_id,
+                batch_counts=dto.batch_counts,
+            )
+
         await self.db.commit()
 
         return self._row_to_item_dto(row)
@@ -115,6 +123,16 @@ class StocktakesService:
                 dto.counted_quantity,
                 difference,
             )
+            stocktake_item_id: int = row["id"]
+
+            # Lưu chi tiết từng lô nếu client gửi batch_counts
+            if dto.batch_counts and len(dto.batch_counts) > 0:
+                await self._upsert_item_batches(
+                    stocktake_item_id=stocktake_item_id,
+                    product_id=dto.product_id,
+                    batch_counts=dto.batch_counts,
+                )
+
             results.append(self._row_to_item_dto(row))
 
         await self.db.commit()
@@ -181,46 +199,109 @@ class StocktakesService:
                 else f"Phiên kiểm kê #{stocktake.id}"
             )
 
-            if item.difference < 0:
-                consumed = await self.batch_service.consume_fefo(
-                    item.product_id, abs(item.difference)
-                )
-                for c in consumed:
+            # Tải chi tiết lô nếu người kiểm kê đã gửi batch_counts
+            batch_details = await self.crud.get_item_batches(item.id)
+
+            if batch_details:
+                # === Chế độ chính xác theo từng lô ===
+                for bd in batch_details:
+                    if bd.difference == 0:
+                        continue
+
+                    if bd.difference < 0:
+                        # Lô này thiếu — trừ đúng lô đó
+                        consumed = await self.batch_service.consume_specific_batch(
+                            item.product_id, bd.batch_id, abs(bd.difference)
+                        )
+                        for c in consumed:
+                            self.db.add(
+                                InventoryTransaction(
+                                    product_id=item.product_id,
+                                    type="OUT",
+                                    source="STOCKTAKE",
+                                    reason=f"Chênh lệch kiểm kê (phiên #{stocktake.id})",
+                                    quantity=c["quantity_taken"],
+                                    unit_cost=None,
+                                    batch_id=c["batch_id"],
+                                    note=note,
+                                    created_by=user.id,
+                                )
+                            )
+                    else:
+                        # Lô này thừa — nhập thêm vào chính lô đó
+                        batch_stmt = (
+                            select(ProductBatch)
+                            .where(ProductBatch.id == bd.batch_id)
+                            .with_for_update()
+                        )
+                        existing_batch = (await self.db.execute(batch_stmt)).scalars().first()
+                        if existing_batch:
+                            existing_batch.quantity_remaining += bd.difference
+                            # Cập nhật stock_quantity trên Product
+                            prod_stmt = (
+                                select(Product)
+                                .where(Product.id == item.product_id)
+                                .with_for_update()
+                            )
+                            prod = (await self.db.execute(prod_stmt)).scalars().first()
+                            if prod:
+                                prod.stock_quantity += bd.difference
+                                await self.batch_service._refresh_nearest_expiry(prod)
+                            self.db.add(
+                                InventoryTransaction(
+                                    product_id=item.product_id,
+                                    type="IN",
+                                    source="STOCKTAKE",
+                                    reason=f"Chênh lệch kiểm kê (phiên #{stocktake.id})",
+                                    quantity=bd.difference,
+                                    unit_cost=None,
+                                    batch_id=existing_batch.id,
+                                    note=note,
+                                    created_by=user.id,
+                                )
+                            )
+            else:
+                # === Fallback: FEFO mù (không có batch_counts) — backward compat ===
+                if item.difference < 0:
+                    consumed = await self.batch_service.consume_fefo(
+                        item.product_id, abs(item.difference)
+                    )
+                    for c in consumed:
+                        self.db.add(
+                            InventoryTransaction(
+                                product_id=item.product_id,
+                                type="OUT",
+                                source="STOCKTAKE",
+                                reason=f"Chênh lệch kiểm kê (phiên #{stocktake.id})",
+                                quantity=c["quantity_taken"],
+                                unit_cost=None,
+                                batch_id=c["batch_id"],
+                                note=note,
+                                created_by=user.id,
+                            )
+                        )
+                else:
+                    batch = await self.batch_service.receive_batch(
+                        product_id=item.product_id,
+                        quantity=item.difference,
+                        expiry_date=None,
+                        unit_cost=Decimal("0"),
+                        created_by=user.id,
+                        batch_code=f"LÔ-KIỂMKÊ-{stocktake.id}-{item.product_id}",
+                    )
                     self.db.add(
                         InventoryTransaction(
                             product_id=item.product_id,
-                            type="OUT",
+                            type="IN",
                             source="STOCKTAKE",
                             reason=f"Chênh lệch kiểm kê (phiên #{stocktake.id})",
-                            quantity=c["quantity_taken"],
+                            quantity=item.difference,
                             unit_cost=None,
-                            batch_id=c["batch_id"],
+                            batch_id=batch.id,
                             note=note,
                             created_by=user.id,
                         )
                     )
-            else:
-                batch = await self.batch_service.receive_batch(
-                    product_id=item.product_id,
-                    quantity=item.difference,
-                    expiry_date=None,
-                    unit_cost=Decimal("0"),
-                    created_by=user.id,
-                    batch_code=f"LÔ-KIỂMKÊ-{stocktake.id}-{item.product_id}",
-                )
-                self.db.add(
-                    InventoryTransaction(
-                        product_id=item.product_id,
-                        type="IN",
-                        source="STOCKTAKE",
-                        reason=f"Chênh lệch kiểm kê (phiên #{stocktake.id})",
-                        quantity=item.difference,
-                        unit_cost=None,
-                        batch_id=batch.id,
-                        note=note,
-                        created_by=user.id,
-                    )
-                )
 
         stocktake.status = "closed"
         stocktake.closed_at = datetime.now(timezone.utc)
@@ -496,3 +577,48 @@ class StocktakesService:
             "batches": batches or [],
             "batch_adjustments": adjustments or [],
         }
+
+    async def _upsert_item_batches(
+        self,
+        stocktake_item_id: int,
+        product_id: int,
+        batch_counts: List[Any],
+    ) -> None:
+        """
+        Xác minh từng lô thuộc đúng sản phẩm, lấy system_quantity hiện tại,
+        rồi upsert vào stocktake_item_batches.
+        Bỏ qua lô không thuộc sản phẩm để tránh dữ liệu lạ.
+        """
+        enriched: List[Dict[str, Any]] = []
+        for bc in batch_counts:
+            batch_id = bc.batch_id if hasattr(bc, "batch_id") else bc["batch_id"]
+            counted_qty = (
+                bc.counted_quantity
+                if hasattr(bc, "counted_quantity")
+                else bc["counted_quantity"]
+            )
+            batch_stmt = (
+                select(ProductBatch).where(
+                    ProductBatch.id == batch_id,
+                    ProductBatch.product_id == product_id,
+                    ProductBatch.deleted_at.is_(None),
+                )
+            )
+            batch = (await self.db.execute(batch_stmt)).scalars().first()
+            if not batch:
+                # Bỏ qua lô không thuộc sản phẩm này
+                continue
+            enriched.append(
+                {
+                    "batch_id": batch_id,
+                    "system_quantity": batch.quantity_remaining,
+                    "counted_quantity": counted_qty,
+                }
+            )
+
+        if enriched:
+            await self.crud.upsert_item_batches(
+                stocktake_item_id=stocktake_item_id,
+                product_id=product_id,
+                batch_counts=enriched,
+            )

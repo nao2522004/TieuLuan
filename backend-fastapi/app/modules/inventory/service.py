@@ -78,7 +78,15 @@ class InventoryService:
             "Bạn không có quyền điều chỉnh sản phẩm thuộc chi nhánh khác.",
         )
 
-        if dto.batch_id:
+        if dto.batches:
+            # Explicit multi-batch mode: consume each listed batch individually
+            consumed: List[ConsumedBatch] = []
+            for item in dto.batches:
+                result = await self.batch_service.consume_specific_batch(
+                    dto.product_id, item.batch_id, item.quantity
+                )
+                consumed.extend(result)
+        elif dto.batch_id:
             consumed = await self.batch_service.consume_specific_batch(
                 dto.product_id, dto.batch_id, dto.quantity
             )
