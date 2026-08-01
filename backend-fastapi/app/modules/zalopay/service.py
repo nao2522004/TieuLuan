@@ -48,8 +48,36 @@ class ZaloPayService:
     async def create_order(self, dto: CreateZaloPayOrderDto) -> Dict[str, Any]:
         app_trans_id = self.generate_app_trans_id()
         app_time = _now_ms()
-        embed_data = _json_dumps(dto.embed_data or {})
-        item = _json_dumps(dto.item or [])
+
+        embed_data_dict = dict(dto.embed_data or {})
+        if "redirecturl" not in embed_data_dict and settings.ZALOPAY_CLIENT_URL:
+            client_url = settings.ZALOPAY_CLIENT_URL.rstrip("/")
+            embed_data_dict["redirecturl"] = f"{client_url}/orders"
+        embed_data = _json_dumps(embed_data_dict)
+
+        raw_items = dto.item or []
+        formatted_items = []
+        for it in raw_items:
+            if isinstance(it, dict):
+                formatted_items.append(
+                    {
+                        "itemid": str(it.get("itemid") or it.get("id") or ""),
+                        "itemname": str(
+                            it.get("itemname") or it.get("name") or "Product"
+                        ),
+                        "itemprice": int(
+                            round(float(it.get("itemprice") or it.get("price") or 0))
+                        ),
+                        "itemquantity": int(
+                            it.get("itemquantity") or it.get("quantity") or 1
+                        ),
+                    }
+                )
+            else:
+                formatted_items.append(it)
+
+        item = _json_dumps(formatted_items)
+        amount_int = int(round(dto.amount))
 
         hmac_input = "|".join(
             str(v)
@@ -57,7 +85,7 @@ class ZaloPayService:
                 self.app_id,
                 app_trans_id,
                 dto.app_user,
-                dto.amount,
+                amount_int,
                 app_time,
                 embed_data,
                 item,
@@ -70,7 +98,7 @@ class ZaloPayService:
             "app_user": dto.app_user,
             "app_trans_id": app_trans_id,
             "app_time": app_time,
-            "amount": dto.amount,
+            "amount": amount_int,
             "description": dto.description,
             "item": item,
             "embed_data": embed_data,
@@ -185,7 +213,7 @@ class ZaloPayService:
 def _json_dumps(value: Any) -> str:
     import json
 
-    return json.dumps(value, ensure_ascii=False)
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
 _zalopay_service: Optional[ZaloPayService] = None

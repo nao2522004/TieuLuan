@@ -8,6 +8,7 @@ from app.common.vietqr import (
     VietQrParams,
     build_viet_qr_payload,
     generate_viet_qr_base64,
+    generate_viet_qr_image,
 )
 from app.core.exceptions import BusinessException
 from app.modules.auth.dependencies import AuthUser
@@ -21,6 +22,8 @@ from app.modules.products.crud import ProductCRUD
 from app.modules.products.service import ProductService
 from app.modules.promotions.service import PromotionService
 from app.modules.shifts.service import ShiftsService
+from app.modules.zalopay.schemas import CreateZaloPayOrderDto
+from app.modules.zalopay.service import get_zalopay_service
 
 
 def _parse_vn_date(value: str, end_of_day: bool) -> datetime:
@@ -212,18 +215,56 @@ class OrderService:
                 pass
 
         qr_content = qr_code = None
-        if is_transfer and branch and bank_bin and bank_account_no:
-            payload = build_viet_qr_payload(
-                VietQrParams(
-                    bank_bin=bank_bin,
-                    bank_account_no=bank_account_no,
-                    bank_account_name=branch.bank_account_name or "STORE",
-                    amount=int(total_amount),
-                    order_id=order.id,
+        if is_transfer:
+            try:
+                zalopay_service = get_zalopay_service()
+                zalo_dto = CreateZaloPayOrderDto(
+                    app_user=str(user.id),
+                    amount=int(round(total_amount)),
+                    description=f"DH{order.id}",
+                    embed_data={"order_id": order.id},
+                    item=[
+                        {
+                            "id": oi.product_id,
+                            "quantity": oi.quantity,
+                            "price": float(oi.unit_price),
+                        }
+                        for oi in saved_items
+                    ],
                 )
-            )
-            qr_content = payload
-            qr_code = generate_viet_qr_base64(payload)
+                zp_res = await zalopay_service.create_order(zalo_dto)
+                app_trans_id = zp_res.get("app_trans_id")
+                order_url = zp_res.get("order_url") or ""
+
+                if app_trans_id:
+                    order.zalopay_app_trans_id = app_trans_id
+                    await self.db.commit()
+                    await self.db.refresh(order)
+
+                if order_url:
+                    qr_content = order_url
+                    qr_code = generate_viet_qr_image(order_url)
+            except Exception as exc:
+                for oi in saved_items:
+                    await self.batch_service.restore_exact_batches(oi.id, oi.product_id)
+
+                order.status = "cancelled"
+                await self.db.commit()
+                await self.db.refresh(order)
+
+                for item in sorted_items:
+                    try:
+                        await self.product_service.evict_cache_for_product(
+                            item.product_id
+                        )
+                    except Exception:
+                        pass
+
+                raise BusinessException(
+                    "ZALOPAY_CREATE_ERROR",
+                    500,
+                    f"Không thể tạo giao dịch ZaloPay: {exc}",
+                )
 
         return await self._to_dto(order, saved_items, qr_content, qr_code)
 
@@ -420,6 +461,8 @@ class OrderService:
             "updated_at": order.updated_at.isoformat(),
             "qr_content": qr_content,
             "qr_code": qr_code,
+            "zalopay_app_trans_id": order.zalopay_app_trans_id,
+            "zalopay_zp_trans_id": order.zalopay_zp_trans_id,
             "promotion_code": order.promotion_code,
             "promotion_type": order.promotion_type,
             "promotion_value": (

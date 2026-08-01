@@ -1,23 +1,24 @@
+import base64
 from dataclasses import dataclass
-from typing import Optional
 import io
+from typing import Optional
 
 
 @dataclass
 class VietQrParams:
-    bank_bin: str           
-    bank_account_no: str    
-    bank_account_name: str  
-    amount: int            
-    order_id: int          
+    bank_bin: str
+    bank_account_no: str
+    bank_account_name: str
+    amount: float
+    order_id: int
 
 
-def _tlv(tag: str, value: str) -> str:
+def tlv(tag: str, value: str) -> str:
     length = str(len(value)).zfill(2)
     return f"{tag}{length}{value}"
 
 
-def _crc16_ccitt(data: str) -> str:
+def crc16_ccitt(data: str) -> str:
     crc = 0xFFFF
     for ch in data:
         crc ^= ord(ch) << 8
@@ -31,40 +32,39 @@ def _crc16_ccitt(data: str) -> str:
 
 
 def build_viet_qr_payload(params: VietQrParams) -> str:
-    consumer_account = _tlv("00", params.bank_bin) + _tlv("01", params.bank_account_no)
+    consumer_account = tlv("00", params.bank_bin) + tlv("01", params.bank_account_no)
     beneficiary_info = (
-        _tlv("00", "A000000727")
-        + _tlv("01", consumer_account)
-        + _tlv("02", "QRIBFTTA")
+        tlv("00", "A000000727") + tlv("01", consumer_account) + tlv("02", "QRIBFTTA")
     )
 
     purpose = f"DH{params.order_id}"[:25]
-    additional_data = _tlv("08", purpose)
+    additional_data = tlv("08", purpose)
 
     merchant_name = (params.bank_account_name or "STORE")[:25]
     amount_str = str(max(0, round(params.amount)))
 
     payload = (
-        _tlv("00", "01")
-        + _tlv("01", "12")
-        + _tlv("38", beneficiary_info)
-        + _tlv("52", "0000")
-        + _tlv("53", "704")
-        + _tlv("54", amount_str)
-        + _tlv("58", "VN")
-        + _tlv("59", merchant_name)
-        + _tlv("60", "VIETNAM")
-        + _tlv("62", additional_data)
+        tlv("00", "01")
+        + tlv("01", "12")
+        + tlv("38", beneficiary_info)
+        + tlv("52", "0000")
+        + tlv("53", "704")
+        + tlv("54", amount_str)
+        + tlv("58", "VN")
+        + tlv("59", merchant_name)
+        + tlv("60", "VIETNAM")
+        + tlv("62", additional_data)
     )
 
-    crc = _crc16_ccitt(payload + "6304")
+    crc = crc16_ccitt(payload + "6304")
     return payload + f"6304{crc}"
 
 
-def generate_viet_qr_base64(payload: str, size: int = 300) -> str:
+def generate_viet_qr_image(payload: str, width: int = 300) -> str:
     try:
         import qrcode
-        import base64
+        from PIL import Image
+
         qr = qrcode.QRCode(
             error_correction=qrcode.constants.ERROR_CORRECT_M,
             box_size=10,
@@ -74,8 +74,33 @@ def generate_viet_qr_base64(payload: str, size: int = 300) -> str:
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        img.save(buf)
         b64 = base64.b64encode(buf.getvalue()).decode()
         return f"data:image/png;base64,{b64}"
-    except ImportError:
-        raise RuntimeError("Cần cài: pip install qrcode[pil]")
+    except Exception:
+        # Fallback to SVG Data URL when qrcode or Pillow is not installed/fails
+        try:
+            import qrcode
+            import qrcode.image.svg
+
+            qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=10,
+                border=1,
+                image_factory=qrcode.image.svg.SvgImage,
+            )
+            qr.add_data(payload)
+            qr.make(fit=True)
+            img = qr.make_image()
+            buf = io.BytesIO()
+            img.save(buf)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return f"data:image/svg+xml;base64,{b64}"
+        except Exception:
+            import urllib.parse
+
+            encoded = urllib.parse.quote(payload)
+            return f"https://api.qrserver.com/v1/create-qr-code/?size={width}x{width}&data={encoded}"
+
+
+generate_viet_qr_base64 = generate_viet_qr_image

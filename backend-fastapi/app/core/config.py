@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ZALOPAY_SERVER_URL: str = Field(
         default="https://clash-washtub-smashing.ngrok-free.dev"
     )
-    ZALOPAY_CLIENT_URL: str = Field(default="http://localhost:3000")
+    ZALOPAY_CLIENT_URL: str = Field(default="http://localhost:5173")
 
 
 settings = Settings()

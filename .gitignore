@@ -63,3 +63,6 @@ coverage/
 .pytest_cache/
 **/.pytest_cache/
 .coverage
+
+bao-cao-loi.md
+TODO_stocktake_batch_tracking.md
