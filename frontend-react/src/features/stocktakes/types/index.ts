@@ -33,9 +33,15 @@ export interface CreateStocktakePayload {
   branch_id?: number;
 }
 
+export interface BatchCountPayload {
+  batch_id: number;
+  counted_quantity: number;
+}
+
 export interface CreateStocktakeItemPayload {
   product_id: number;
   counted_quantity: number;
+  batch_counts?: BatchCountPayload[];
 }
 
 export interface StocktakeSkippedItem {

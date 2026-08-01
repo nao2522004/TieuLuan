@@ -3,10 +3,10 @@ import { Modal, ModalTitleBar } from "@/components/Modal";
 import { ProductPicker } from "@/components/ProductPicker";
 import { useProductDetailQuery, useProductBatchesQuery } from "@/features/products/api/products.queries";
 import type { Product } from "@/features/products/types";
+import type { BatchCountPayload } from "../types";
 import {
   useStocktakeDetailQuery,
   useRecordStocktakeItemMutation,
-  useRecordStocktakeItemsBulkMutation,
   useCloseStocktakeMutation,
   useRemoveStocktakeItemMutation,
 } from "../api/stocktakes.queries";
@@ -146,27 +146,37 @@ export function StocktakeDetailModal({
 
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
   const [countedQty, setCountedQty] = useState<number>(0);
-  const [productCache, setProductCache] = useState<Record<number, Product>>({});
+  // chi tiết số đếm từng lô: Record<batchId, countedQty> — gửi kèm để backend trừ đúng lô
+  const [batchCounts, setBatchCounts] = useState<Record<number, number>>({});
 
   const isOpen = stocktake?.status === "open";
   const items = stocktake?.items ?? [];
 
-  const cacheProduct = (p: Product) =>
-    setProductCache((prev) => (prev[p.id] ? prev : { ...prev, [p.id]: p }));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const cacheProduct = (_p: Product) => { /* noop — onLoaded callback để ItemRow trigger re-render */ };
 
   const handleEditRow = (product: Product, item: StocktakeItem) => {
     setSelectedProduct(product);
     setCountedQty(item.counted_quantity);
+    setBatchCounts({});
   };
 
   const handleAddOrUpdate = async () => {
     if (!selectedProduct) return;
+
+    // Xây batch_counts[] từ state — chỉ gửi khi có chi tiết lô
+    const batchCountsPayload: BatchCountPayload[] = Object.entries(batchCounts).map(
+      ([id, qty]) => ({ batch_id: Number(id), counted_quantity: qty }),
+    );
+
     await recordMutation.mutateAsync({
       product_id: selectedProduct.id,
       counted_quantity: countedQty,
+      ...(batchCountsPayload.length > 0 && { batch_counts: batchCountsPayload }),
     });
     setSelectedProduct(undefined);
     setCountedQty(0);
+    setBatchCounts({});
   };
 
   const handleClose = async () => {
@@ -288,7 +298,10 @@ export function StocktakeDetailModal({
                   <>
                     <BatchInspectorPanel
                       productId={selectedProduct.id}
-                      onTotalCountedChange={(total) => setCountedQty(total)}
+                      onDataChange={(counts, total) => {
+                        setBatchCounts(counts);
+                        setCountedQty(total);
+                      }}
                     />
                     <div
                       style={{ display: "flex", gap: 10, alignItems: "flex-end", marginTop: 12 }}
@@ -448,10 +461,11 @@ export function StocktakeDetailModal({
 
 function BatchInspectorPanel({
   productId,
-  onTotalCountedChange,
+  onDataChange,
 }: {
   productId: number;
-  onTotalCountedChange: (total: number) => void;
+  /** Được gọi mỗi khi user thay đổi số đếm — trả về map {batchId: countedQty} và tổng */
+  onDataChange: (counts: Record<number, number>, total: number) => void;
 }) {
   const { data: batches, isLoading } = useProductBatchesQuery(productId);
   const [batchCounts, setBatchCounts] = useState<Record<number, number>>({});
@@ -464,15 +478,16 @@ function BatchInspectorPanel({
       });
       setBatchCounts(initial);
       const total = batches.reduce((sum, b) => sum + b.quantity_remaining, 0);
-      onTotalCountedChange(total);
+      onDataChange(initial, total);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batches]);
 
   const handleBatchChange = (batchId: number, val: number) => {
     const next = { ...batchCounts, [batchId]: val };
     setBatchCounts(next);
     const total = Object.values(next).reduce((a, b) => a + b, 0);
-    onTotalCountedChange(total);
+    onDataChange(next, total);
   };
 
   if (isLoading) {

@@ -105,7 +105,7 @@ export function useUpdateProductBatchMutation() {
       batchId: number;
       payload: UpdateProductBatchPayload;
     }) => productsApi.updateProductBatch(batchId, payload),
-    onSuccess: (_data, variables) => {
+    onSuccess: (_data, _variables) => {
       queryClient.invalidateQueries({ queryKey: ["products", "batches"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
