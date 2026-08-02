@@ -11,6 +11,7 @@ from app.modules.returns.crud import ReturnCRUD
 from app.modules.returns.models import Return
 from app.modules.orders.models import Order
 from app.modules.returns.schemas import CreateReturnDto
+from app.modules.shifts.service import ShiftsService
 from app.modules.users.service import UserService
 
 
@@ -21,6 +22,7 @@ class ReturnService:
         self.batch_service = BatchConsumptionService(db)
         self.product_service = ProductService(db)
         self.user_service = UserService(db)
+        self.shifts_service = ShiftsService(db)
 
     async def create(self, dto: CreateReturnDto, user: AuthUser) -> Dict[str, Any]:
         order_item = await self.crud.lock_order_item(dto.order_item_id)
@@ -38,6 +40,8 @@ class ReturnService:
                 404,
                 "Không tìm thấy đơn hàng chứa dòng sản phẩm này.",
             )
+
+        await self.shifts_service.require_active_shift(user, order.branch_id)
 
         if order.status == "cancelled":
             raise BusinessException(

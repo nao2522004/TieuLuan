@@ -9,6 +9,7 @@ import { ReturnsService } from "./returns.service";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { UsersModule } from "../users/users.module";
 import { ProductsModule } from "../products/products.module";
+import { ShiftsModule } from "../shifts/shifts.module";
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ProductsModule } from "../products/products.module";
     JwtModule.register({}),
     UsersModule,
     ProductsModule,
+    ShiftsModule,
   ],
   controllers: [ReturnsController],
   providers: [ReturnsService, JwtAuthGuard],

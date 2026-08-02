@@ -13,6 +13,7 @@ import { PaginationMeta } from "../../common/dto/api-response.dto";
 
 import { BatchConsumptionService } from "../products/batch-consumption.service";
 import { ProductsService } from "../products/products.service";
+import { ShiftsService } from "../shifts/shifts.service";
 
 @Injectable()
 export class ReturnsService {
@@ -21,6 +22,7 @@ export class ReturnsService {
     private readonly dataSource: DataSource,
     private readonly batchConsumptionService: BatchConsumptionService,
     private readonly productsService: ProductsService,
+    private readonly shiftsService: ShiftsService,
   ) {}
 
   async create(dto: CreateReturnDto, user: AuthUser): Promise<ReturnDto> {
@@ -57,6 +59,8 @@ export class ReturnsService {
           "Không tìm thấy đơn hàng chứa dòng sản phẩm này.",
         );
       }
+
+      await this.shiftsService.requireActiveShift(user, order.branchId);
 
       if (order.status === "cancelled") {
         throw new BusinessException(

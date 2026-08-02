@@ -548,6 +548,44 @@ export class ShiftsService {
     return count > 0;
   }
 
+  async requireActiveShift(
+    user: AuthUser,
+    branchId?: number,
+  ): Promise<Shift> {
+    const targetBranchId = user.branchId ?? branchId;
+    if (!targetBranchId) {
+      throw new BusinessException(
+        "SHIFT_BRANCH_REQUIRED",
+        400,
+        "Tài khoản của bạn không thuộc bất kỳ chi nhánh nào.",
+      );
+    }
+
+    const openShift = await this.findOpenShiftForBranch(targetBranchId);
+    if (!openShift) {
+      throw new BusinessException(
+        "SHIFT_REQUIRED",
+        400,
+        "Chi nhánh hiện chưa có ca làm việc nào đang mở.",
+      );
+    }
+
+    const isAssigned =
+      user.roles.includes("admin") ||
+      openShift.userId === user.id ||
+      (await this.isUserInShift(user.id, openShift.id));
+
+    if (!isAssigned) {
+      throw new BusinessException(
+        "SHIFT_USER_NOT_ASSIGNED",
+        403,
+        "Bạn không được phân công làm việc trong ca đang mở của chi nhánh.",
+      );
+    }
+
+    return openShift;
+  }
+
   private async findOrThrow(id: number): Promise<Shift> {
     const shift = await this.shiftsRepository.findOne({
       where: { id },

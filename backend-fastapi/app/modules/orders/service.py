@@ -44,34 +44,7 @@ class OrderService:
         self.expiry_pricing = ExpiryPricingService(db)
 
     async def create(self, dto: CreateOrderDto, user: AuthUser) -> Dict[str, Any]:
-        if not user.branch_id:
-            raise BusinessException(
-                "SHIFT_BRANCH_REQUIRED",
-                400,
-                "Tài khoản của bạn không thuộc bất kỳ chi nhánh nào.",
-            )
-
-        open_shift = await self.shifts_service.find_open_shift_for_branch(
-            user.branch_id
-        )
-        if not open_shift:
-            raise BusinessException(
-                "SHIFT_REQUIRED",
-                400,
-                "Chi nhánh hiện chưa có ca làm việc nào đang mở.",
-            )
-
-        is_assigned = (
-            "admin" in user.roles
-            or open_shift.user_id == user.id
-            or await self.shifts_service.is_user_in_shift(user.id, open_shift.id)
-        )
-        if not is_assigned:
-            raise BusinessException(
-                "SHIFT_USER_NOT_ASSIGNED",
-                403,
-                "Bạn không được phân công làm việc trong ca đang mở của chi nhánh.",
-            )
+        open_shift = await self.shifts_service.require_active_shift(user)
 
         is_transfer = dto.payment_method == "transfer"
         payment_status = "pending" if is_transfer else "paid"
@@ -370,6 +343,9 @@ class OrderService:
         pre_check = await self.crud.get_by_id(order_id)
         if not pre_check:
             raise BusinessException("ORDER_NOT_FOUND", 404, "Không tìm thấy đơn hàng.")
+
+        await self.shifts_service.require_active_shift(user, pre_check.branch_id)
+
         if pre_check.status == "cancelled":
             raise BusinessException(
                 "ORDER_ALREADY_CANCELLED",

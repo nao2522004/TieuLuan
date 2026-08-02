@@ -62,37 +62,7 @@ export class OrdersService {
   async create(dto: CreateOrderDto, user: AuthUser): Promise<OrderDataDto> {
     this.assertNoDuplicateItems(dto.items);
 
-    if (!user.branchId) {
-      throw new BusinessException(
-        "SHIFT_BRANCH_REQUIRED",
-        400,
-        "Tài khoản của bạn không thuộc bất kỳ chi nhánh nào.",
-      );
-    }
-
-    const openShift = await this.shiftsService.findOpenShiftForBranch(
-      user.branchId,
-    );
-    if (!openShift) {
-      throw new BusinessException(
-        "SHIFT_REQUIRED",
-        400,
-        "Chi nhánh hiện chưa có ca làm việc nào đang mở.",
-      );
-    }
-
-    const isAssigned =
-      user.roles.includes("admin") ||
-      openShift.userId === user.id ||
-      (await this.shiftsService.isUserInShift(user.id, openShift.id));
-
-    if (!isAssigned) {
-      throw new BusinessException(
-        "SHIFT_USER_NOT_ASSIGNED",
-        403,
-        "Bạn không được phân công làm việc trong ca đang mở của chi nhánh.",
-      );
-    }
+    const openShift = await this.shiftsService.requireActiveShift(user);
 
     const isTransfer = dto.payment_method === "transfer";
     const paymentStatus = isTransfer ? "pending" : "paid";
@@ -123,7 +93,6 @@ export class OrdersService {
             );
           }
 
-          // Trừ kho FEFO — nhận về danh sách lô đã bốc kèm hạn dùng thực tế của từng lô
           const consumedBatches =
             await this.batchConsumptionService.consumeFefo(
               manager,
@@ -133,7 +102,6 @@ export class OrdersService {
 
           const salePrice = Number(product.salePrice);
 
-          // ⭐ CỘNG DỒN tiền theo TỪNG LÔ đã thực sự xuất — không dùng trạng thái tồn kho sau cùng
           let lineTotal = 0;
           for (const cb of consumedBatches) {
             const pricing =
@@ -547,6 +515,9 @@ export class OrdersService {
         "Không tìm thấy đơn hàng.",
       );
     }
+
+    await this.shiftsService.requireActiveShift(user, orderToCheck.branchId);
+
     if (orderToCheck.status === "cancelled") {
       throw new BusinessException(
         "ORDER_ALREADY_CANCELLED",

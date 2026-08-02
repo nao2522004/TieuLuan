@@ -400,6 +400,40 @@ class ShiftsService:
         count = await self.crud.count_users_in_shift(user_id, shift_id)
         return count > 0
 
+    async def require_active_shift(
+        self, user: AuthUser, branch_id: Optional[int] = None
+    ) -> Shift:
+        target_branch_id = user.branch_id if user.branch_id is not None else branch_id
+        if not target_branch_id:
+            raise BusinessException(
+                "USER_BRANCH_REQUIRED",
+                400,
+                "Tài khoản của bạn không thuộc bất kỳ chi nhánh nào.",
+            )
+
+        open_shift = await self.find_open_shift_for_branch(target_branch_id)
+        if not open_shift:
+            raise BusinessException(
+                "SHIFT_REQUIRED",
+                400,
+                "Chi nhánh hiện chưa có ca làm việc nào đang mở.",
+            )
+
+        is_assigned = (
+            "admin" in user.roles
+            or open_shift.user_id == user.id
+            or await self.is_user_in_shift(user.id, open_shift.id)
+        )
+        if not is_assigned:
+            raise BusinessException(
+                "SHIFT_USER_NOT_ASSIGNED",
+                403,
+                "Bạn không được phân công làm việc trong ca đang mở của chi nhánh.",
+            )
+
+        return open_shift
+
+
     async def _cash_revenue_for_shift(self, shift_id: int) -> Decimal:
         stmt = select(func.coalesce(func.sum(Order.total_amount), 0)).where(
             Order.shift_id == shift_id,
