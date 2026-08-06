@@ -103,7 +103,11 @@ export class ReturnsService {
         );
       }
 
-      const refundAmount = Number(orderItem.unitPrice) * dto.quantity;
+      const rawRefund = Number(orderItem.unitPrice) * dto.quantity;
+      const refundAmount =
+        order.paymentMethod === "cash"
+          ? Math.ceil(rawRefund / 1000) * 1000
+          : rawRefund;
 
       const entity = returnRepo.create({
         orderItemId: dto.order_item_id,

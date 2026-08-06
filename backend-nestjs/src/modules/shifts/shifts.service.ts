@@ -203,9 +203,12 @@ export class ShiftsService {
       const cashRevenue = await manager
         .getRepository(Order)
         .createQueryBuilder("o")
-        .select("COALESCE(SUM(o.total_amount), 0)", "sum")
+        .select(
+          "COALESCE(SUM(CASE WHEN o.payment_method = 'cash' THEN CEIL(o.total_amount / 1000) * 1000 ELSE o.total_amount END), 0)",
+          "sum",
+        )
         .where("o.shift_id = :id", { id })
-        .andWhere("o.payment_method = 'cash'")
+        .andWhere("o.payment_method IN ('cash', 'transfer')")
         .andWhere("o.status = 'completed'")
         .andWhere("o.deleted_at IS NULL")
         .getRawOne<{ sum: string }>();
@@ -219,7 +222,8 @@ export class ShiftsService {
       shift.expectedCash =
         Number(shift.openingCash) +
         Number(cashRevenue?.sum ?? 0) -
-        returnsTotals.cash;
+        returnsTotals.cash -
+        returnsTotals.transfer;
       shift.note = dto.note ?? shift.note;
       shift.closedAt = new Date();
 
@@ -339,8 +343,10 @@ export class ShiftsService {
       if (o.status !== "completed") continue;
       ordersCount += 1;
       const amount = Number(o.totalAmount);
-      if (o.paymentMethod === "cash") cashTotal += amount;
-      else if (o.paymentMethod === "card") cardTotal += amount;
+      if (o.paymentMethod === "cash") {
+        const rounded = Math.ceil(amount / 1000) * 1000;
+        cashTotal += rounded;
+      } else if (o.paymentMethod === "card") cardTotal += amount;
       else if (o.paymentMethod === "transfer") transferTotal += amount;
     }
 
@@ -389,7 +395,11 @@ export class ShiftsService {
       orderRefundsMap.set(orderId, currentRefund + Number(r.refund_amount));
     }
     const liveExpectedCash =
-      Number(shift.openingCash) + cashTotal - returnsTotals.cash;
+      Number(shift.openingCash) +
+      cashTotal +
+      transferTotal -
+      returnsTotals.cash -
+      returnsTotals.transfer;
 
     // Batch lookup tên nhân viên tạo từng đơn — tránh N+1 khi ca có nhiều đơn
     const creatorNames = await this.usersService.findNamesByIds([
@@ -397,17 +407,25 @@ export class ShiftsService {
       ...returnRows.map((r) => Number(r.created_by)),
     ]);
 
-    const orderSummaries: ShiftOrderSummaryDto[] = orders.map((o) => ({
-      id: o.id,
-      created_by: o.createdBy,
-      created_by_name: creatorNames.get(o.createdBy) ?? null,
-      payment_method: o.paymentMethod,
-      payment_status: o.paymentStatus,
-      status: o.status,
-      total_amount: Number(o.totalAmount),
-      refunded_amount: orderRefundsMap.get(o.id) ?? 0,
-      created_at: o.createdAt,
-    }));
+    const orderSummaries: ShiftOrderSummaryDto[] = orders.map((o) => {
+      const totalAmount = Number(o.totalAmount);
+      const roundedTotal =
+        o.paymentMethod === "cash"
+          ? Math.ceil(totalAmount / 1000) * 1000
+          : totalAmount;
+      return {
+        id: o.id,
+        created_by: o.createdBy,
+        created_by_name: creatorNames.get(o.createdBy) ?? null,
+        payment_method: o.paymentMethod,
+        payment_status: o.paymentStatus,
+        status: o.status,
+        total_amount: totalAmount,
+        rounded_total: roundedTotal,
+        refunded_amount: orderRefundsMap.get(o.id) ?? 0,
+        created_at: o.createdAt,
+      };
+    });
 
     const returnSummaries: ShiftReturnSummaryDto[] = returnRows.map((r) => ({
       id: Number(r.id),
@@ -489,9 +507,12 @@ export class ShiftsService {
         const cashRevenue = await manager
           .getRepository(Order)
           .createQueryBuilder("o")
-          .select("COALESCE(SUM(o.total_amount), 0)", "sum")
+          .select(
+            "COALESCE(SUM(CASE WHEN o.payment_method = 'cash' THEN CEIL(o.total_amount / 1000) * 1000 ELSE o.total_amount END), 0)",
+            "sum",
+          )
           .where("o.shift_id = :id", { id })
-          .andWhere("o.payment_method = 'cash'")
+          .andWhere("o.payment_method IN ('cash', 'transfer')")
           .andWhere("o.status = 'completed'")
           .andWhere("o.deleted_at IS NULL")
           .getRawOne<{ sum: string }>();
@@ -504,7 +525,8 @@ export class ShiftsService {
         const expectedCash =
           Number(shift.openingCash) +
           Number(cashRevenue?.sum ?? 0) -
-          returnsTotals.cash;
+          returnsTotals.cash -
+          returnsTotals.transfer;
 
         shift.closingCash = dto.closing_cash;
         shift.expectedCash = expectedCash;

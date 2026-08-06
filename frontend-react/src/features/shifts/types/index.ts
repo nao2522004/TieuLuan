@@ -27,6 +27,7 @@ export interface ShiftOrderSummary {
   payment_status: "pending" | "paid";
   status: "completed" | "cancelled";
   total_amount: number;
+  rounded_total: number;
   refunded_amount?: number;
   created_at: string;
 }

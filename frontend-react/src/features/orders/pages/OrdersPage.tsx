@@ -9,6 +9,7 @@ import type { Order } from "../types";
 import { useOrderDetailQuery } from "../api/orders.queries";
 import { ReceiptPrintView } from "../components/ReceiptPrintView";
 import { useBranchDetailQuery } from "@/features/branches/api/branches.queries";
+import { formatNumber } from "@/lib/formatters";
 
 function StatusBadge({ status }: { status: string }) {
   return status === "completed" ? (
@@ -258,7 +259,7 @@ function OrderDetailModal({
                           {item.quantity}
                         </td>
                         <td style={{ textAlign: "right", fontSize: "0.9rem" }}>
-                          {item.unit_price.toLocaleString("vi-VN")} đ
+                          {formatNumber(item.unit_price)} đ
                         </td>
                         <td
                           style={{
@@ -267,10 +268,7 @@ function OrderDetailModal({
                             color: "var(--primary)",
                           }}
                         >
-                          {(item.unit_price * item.quantity).toLocaleString(
-                            "vi-VN",
-                          )}{" "}
-                          đ
+                          {formatNumber(item.unit_price * item.quantity)} đ
                         </td>
                       </tr>
                     ))}
@@ -299,24 +297,62 @@ function OrderDetailModal({
                   >
                     <span>Giảm giá:</span>
                     <span>
-                      − {order.discount_amount.toLocaleString("vi-VN")} đ
+                      − {formatNumber(order.discount_amount)} đ
                     </span>
                   </div>
                 )}
                 <div className="flex-row-between">
-                  <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>
-                    Tổng thanh toán:
+                  <span style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+                    Tổng tiền hàng:
                   </span>
                   <span
                     style={{
-                      fontWeight: 800,
-                      fontSize: "1.25rem",
+                      fontWeight: 700,
+                      fontSize: "1.05rem",
                       color: "var(--primary)",
                     }}
                   >
-                    {order.total_amount.toLocaleString("vi-VN")} đ
+                    {formatNumber(order.total_amount)} đ
                   </span>
                 </div>
+                {order.payment_method === "cash" && order.rounding_amount > 0 && (
+                  <>
+                    <div
+                      className="flex-row-between"
+                      style={{
+                        marginTop: 6,
+                        fontSize: "0.875rem",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      <span>Làm tròn tiền mặt:</span>
+                      <span>
+                        + {formatNumber(order.rounding_amount)} đ
+                      </span>
+                    </div>
+                    <div
+                      className="flex-row-between"
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTop: "1px dashed var(--border-color)",
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>
+                        Thực thu:
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: 800,
+                          fontSize: "1.25rem",
+                          color: "var(--success)",
+                        }}
+                      >
+                        {formatNumber(order.rounded_total)} đ
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Hành động */}
@@ -819,11 +855,29 @@ export default function OrdersPage() {
                     </td>
                     <td style={{ textAlign: "right", fontSize: "0.85rem" }}>
                       {order.discount_amount > 0
-                        ? `${order.discount_amount.toLocaleString("vi-VN")} đ`
+                        ? `${formatNumber(order.discount_amount)} đ`
                         : "—"}
                     </td>
                     <td style={{ textAlign: "right", fontWeight: 700 }}>
-                      {order.total_amount.toLocaleString("vi-VN")} đ
+                      {order.payment_method === "cash" &&
+                      order.rounding_amount > 0 ? (
+                        <span>
+                          <span
+                            style={{
+                              textDecoration: "line-through",
+                              color: "var(--text-muted)",
+                              fontSize: "0.8rem",
+                              marginRight: 4,
+                              fontWeight: 400,
+                            }}
+                          >
+                            {formatNumber(order.total_amount)}đ
+                          </span>
+                          {formatNumber(order.rounded_total)} đ
+                        </span>
+                      ) : (
+                        `${formatNumber(order.total_amount)} đ`
+                      )}
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div className="flex-row-end" style={{ gap: 6 }}>

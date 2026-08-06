@@ -27,6 +27,10 @@ export interface Order {
   payment_status: "paid" | "pending";
   discount_amount: number;
   total_amount: number;
+  /** Số tiền điều chỉnh làm tròn (>= 0). Chỉ > 0 khi payment_method='cash'. */
+  rounding_amount: number;
+  /** Số tiền thực thu khách = total_amount + rounding_amount. */
+  rounded_total: number;
   items: OrderItem[];
   created_at: string;
   updated_at: string;

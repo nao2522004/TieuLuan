@@ -442,7 +442,7 @@ export function CloseShiftModal({ shift, onClose }: CloseShiftModalProps) {
               id="closing_cash"
               type="number"
               min={0}
-              step={1000}
+              step={1}
               className="form-control"
               {...register("closing_cash")}
             />
@@ -545,7 +545,7 @@ export function CorrectCloseModal({ shift, onClose }: CorrectCloseModalProps) {
               id="correct_closing_cash"
               type="number"
               min={0}
-              step={1000}
+              step={1}
               className="form-control"
               {...register("closing_cash")}
             />

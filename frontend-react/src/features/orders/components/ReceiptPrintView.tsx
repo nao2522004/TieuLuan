@@ -1,4 +1,5 @@
 import type { Order } from "../types";
+import { formatNumber } from "@/lib/formatters";
 
 interface ReceiptPrintViewProps {
   order: Order;
@@ -228,13 +229,13 @@ export function ReceiptPrintView({
                 }}
               >
                 <span>
-                  {it.quantity} x {it.unit_price.toLocaleString("vi-VN")} đ
+                  {it.quantity} x {formatNumber(it.unit_price)} đ
                   {hasDiscount && it.discount_percent != null && (
                     <span> (−{it.discount_percent}%)</span>
                   )}
                 </span>
                 <span style={{ fontWeight: 600 }}>
-                  {lineTotal.toLocaleString("vi-VN")} đ
+                  {formatNumber(lineTotal)} đ
                 </span>
               </div>
               {hasDiscount && (
@@ -245,7 +246,7 @@ export function ReceiptPrintView({
                     color: "#555",
                   }}
                 >
-                  Giá gốc: {it.original_unit_price!.toLocaleString("vi-VN")} đ
+                  Giá gốc: {formatNumber(it.original_unit_price)} đ
                 </div>
               )}
             </div>
@@ -324,7 +325,7 @@ export function ReceiptPrintView({
                       fontWeight: 600,
                     }}
                   >
-                    − {expiryDiscountTotal.toLocaleString("vi-VN")} đ
+                    − {formatNumber(expiryDiscountTotal)} đ
                   </span>
                 </div>
                 <div style={{ fontSize: "0.72rem", color: "#000" }}>
@@ -355,7 +356,7 @@ export function ReceiptPrintView({
                       fontWeight: 600,
                     }}
                   >
-                    − {order.discount_amount.toLocaleString("vi-VN")} đ
+                    − {formatNumber(order.discount_amount)} đ
                   </span>
                 </div>
                 {order.promotion_type === "percent" &&
@@ -372,7 +373,7 @@ export function ReceiptPrintView({
 
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
 
-      {/* 4. Giá cuối */}
+      {/* 4. Giá cuối — tổng + làm tròn tiền mặt */}
       <div
         style={{
           display: "flex",
@@ -383,8 +384,38 @@ export function ReceiptPrintView({
         }}
       >
         <span>TỔNG CỘNG:</span>
-        <span>{order.total_amount.toLocaleString("vi-VN")} đ</span>
+        <span>{formatNumber(order.total_amount)} đ</span>
       </div>
+
+      {order.payment_method === "cash" && order.rounding_amount > 0 && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "0.82rem",
+              marginTop: 4,
+            }}
+          >
+            <span>Làm tròn tiền mặt:</span>
+            <span>+{formatNumber(order.rounding_amount)} đ</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontWeight: 800,
+              fontSize: "1.05rem",
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: "2px solid #000",
+            }}
+          >
+            <span>THỰC THU:</span>
+            <span>{formatNumber(order.rounded_total)} đ</span>
+          </div>
+        </>
+      )}
 
       <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.8rem" }}>
         Cảm ơn quý khách!

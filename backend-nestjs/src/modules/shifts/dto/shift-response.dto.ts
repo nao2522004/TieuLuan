@@ -120,6 +120,12 @@ export class ShiftOrderSummaryDto {
   total_amount: number;
 
   @ApiProperty({
+    example: 56000,
+    description: "Tiền thực thu: với tiền mặt đã làm tròn lên bội số 1000, các PT khác = total_amount",
+  })
+  rounded_total: number;
+
+  @ApiProperty({
     example: 0,
     description: "Tổng số tiền đã trả/hoàn tiền cho đơn này trong ca (nếu có)",
   })

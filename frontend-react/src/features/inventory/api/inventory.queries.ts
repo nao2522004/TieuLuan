@@ -25,6 +25,7 @@ export function useCreateInboundMutation() {
         queryKey: ["inventory", "transactions"],
       });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", "alerts"] });
       notify.success("Nhập kho thành công!");
     },
   });

@@ -77,8 +77,11 @@ class ReturnService:
                 f"thể trả ({remaining} sản phẩm).",
             )
 
-        # refund_amount server tự tính từ snapshot unit_price - KHÔNG nhận từ client
-        refund_amount = float(order_item.unit_price) * dto.quantity
+        raw_refund = float(order_item.unit_price) * dto.quantity
+        if order.payment_method == "cash":
+            refund_amount = math.ceil(raw_refund / 1000) * 1000
+        else:
+            refund_amount = raw_refund
 
         entity = await self.crud.create(
             order_item_id=dto.order_item_id,

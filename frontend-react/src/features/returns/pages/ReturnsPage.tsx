@@ -77,9 +77,13 @@ export default function ReturnsPage() {
 
   const watchedItemId = watch("order_item_id");
   const watchedQty = watch("quantity");
-  const estimatedRefund = selectedItem
+  const rawRefund = selectedItem
     ? selectedItem.unit_price * Math.max(0, Number(watchedQty))
     : 0;
+  const isCashOrder = orderQuery.data?.payment_method === "cash";
+  const estimatedRefund = isCashOrder
+    ? Math.ceil(rawRefund / 1000) * 1000
+    : rawRefund;
 
   // sync selectedItem when order_item_id changes
   useEffect(() => {
@@ -208,52 +212,103 @@ export default function ReturnsPage() {
           alignItems: "start",
         }}
       >
-        {/* LEFT: Lookup panel */}
+        {/* LEFT: Unified Lookup Panel */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Step 1 – Barcode scan */}
-          <div className="card">
+          <div className="card" style={{ padding: "20px" }}>
             <h3
               style={{
-                marginBottom: "14px",
+                marginBottom: "12px",
                 fontSize: "0.95rem",
                 color: "var(--text-secondary)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
               }}
             >
-              Bước 1 · Quét mã vạch (Hoá đơn hoặc Sản phẩm)
+              🔍 Tra cứu đơn hàng & Sản phẩm trả
             </h3>
+
+            {/* Unified search bar */}
             <div style={{ display: "flex", gap: "8px" }}>
-              <input
-                ref={barcodeRef}
-                type="text"
-                className="form-control"
-                placeholder="Quét mã vạch hóa đơn (ORD-xxx) hoặc mã vạch sản phẩm..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                onKeyDown={handleBarcodeKeyDown}
-                autoFocus
-                style={{ fontFamily: "monospace", letterSpacing: "0.05em" }}
-              />
+              <div style={{ flex: 1, position: "relative" }}>
+                <input
+                  ref={barcodeRef}
+                  type="text"
+                  className="form-control"
+                  placeholder="Quét mã vạch HĐ / SP hoặc nhập Mã đơn hàng (VD: 42)..."
+                  value={barcodeInput}
+                  onChange={(e) => {
+                    setBarcodeInput(e.target.value);
+                    setOrderIdInput(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleBarcodeSearch();
+                    }
+                  }}
+                  autoFocus
+                  style={{
+                    fontFamily: "monospace",
+                    letterSpacing: "0.03em",
+                    paddingRight: barcodeInput ? "36px" : "12px",
+                  }}
+                />
+                {barcodeInput && (
+                  <button
+                    type="button"
+                    onClick={handleFullReset}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                    }}
+                    title="Xóa tìm kiếm"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               <button
                 className="btn btn-primary"
                 onClick={handleBarcodeSearch}
                 style={{ flexShrink: 0, gap: "6px" }}
               >
-                🔍 Tìm
+                🔍 Tra cứu
               </button>
             </div>
 
-            {/* Product result */}
-            {productQuery.isLoading && (
+            <p
+              style={{
+                margin: "8px 0 0",
+                fontSize: "0.78rem",
+                color: "var(--text-muted)",
+              }}
+            >
+              💡 Nhập <strong>Mã đơn hàng</strong> (VD: 42), quét <strong>Mã vạch hóa đơn</strong> hoặc <strong>Mã vạch sản phẩm</strong>.
+            </p>
+
+            {/* Loading & Error States */}
+            {(productQuery.isLoading || orderQuery.isLoading) && (
               <div
                 style={{
-                  marginTop: 12,
+                  marginTop: 14,
                   color: "var(--text-muted)",
                   fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                 }}
               >
-                Đang tìm sản phẩm...
+                ⏳ Đang tra cứu thông tin dữ liệu...
               </div>
             )}
             {productQuery.isError && (
@@ -267,94 +322,6 @@ export default function ReturnsPage() {
                 ❌ Không tìm thấy sản phẩm với mã vạch này.
               </div>
             )}
-            {productQuery.data && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: "12px 14px",
-                  background: "rgba(99,102,241,0.1)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid rgba(99,102,241,0.25)",
-                }}
-              >
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>
-                  {productQuery.data.name}
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.82rem",
-                    color: "var(--text-secondary)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 16 }}>
-                    <span>📦 ĐVT: {productQuery.data.unit}</span>
-                    <span>
-                      💰 Giá bán: {fmt(productQuery.data.sale_price)} đ
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 16,
-                      fontFamily: "monospace",
-                      fontSize: "0.78rem",
-                      color: "var(--text-muted)",
-                      marginTop: 2,
-                    }}
-                  >
-                    <span>ID: #{productQuery.data.id}</span>
-                    <span>Mã vạch SP: {productQuery.data.barcode}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Step 2 – Order lookup */}
-          <div className="card">
-            <h3
-              style={{
-                marginBottom: "14px",
-                fontSize: "0.95rem",
-                color: "var(--text-secondary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              Bước 2 · Nhập mã đơn hàng (Nếu không quét mã vạch hoá đơn)
-            </h3>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <input
-                type="number"
-                className="form-control"
-                placeholder="Mã đơn hàng (VD: 42)..."
-                value={orderIdInput}
-                onChange={(e) => setOrderIdInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleOrderSearch()}
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handleOrderSearch}
-                style={{ flexShrink: 0 }}
-              >
-                Tra cứu
-              </button>
-            </div>
-
-            {orderQuery.isLoading && (
-              <div
-                style={{
-                  marginTop: 12,
-                  color: "var(--text-muted)",
-                  fontSize: "0.85rem",
-                }}
-              >
-                Đang tải đơn hàng...
-              </div>
-            )}
             {orderQuery.isError && (
               <div
                 style={{
@@ -363,45 +330,135 @@ export default function ReturnsPage() {
                   fontSize: "0.85rem",
                 }}
               >
-                ❌ Không tìm thấy đơn hàng.
+                ❌ Không tìm thấy đơn hàng tương ứng.
               </div>
             )}
 
+            {/* Product scan summary tag */}
+            {productQuery.data && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: "10px 14px",
+                  background: "rgba(99,102,241,0.08)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid rgba(99,102,241,0.2)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "0.88rem" }}>
+                    📦 {productQuery.data.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.78rem",
+                      color: "var(--text-secondary)",
+                      marginTop: 2,
+                    }}
+                  >
+                    ĐVT: {productQuery.data.unit} · Mã vạch: {productQuery.data.barcode}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 700, color: "var(--primary)" }}>
+                  {fmt(productQuery.data.sale_price)} đ
+                </div>
+              </div>
+            )}
+
+            {/* Order Detail & Items List */}
             {orderQuery.data && (
-              <div style={{ marginTop: 14 }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 14,
+                  borderTop: "1px dashed var(--border-color)",
+                }}
+              >
+                {/* Order Meta Card Header */}
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 10,
+                    padding: "12px 14px",
+                    background: "rgba(255,255,255,0.03)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border-color)",
+                    marginBottom: 14,
                   }}
                 >
-                  <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-                    ĐH #{orderQuery.data.id}
-                  </span>
-                  <span
-                    style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}
-                  >
-                    {fmtDate(orderQuery.data.created_at)}
-                  </span>
+                  <div className="flex-row-between" style={{ marginBottom: 6 }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--primary)" }}>
+                      🧾 Đơn hàng #{orderQuery.data.id}
+                    </span>
+                    <span
+                      className={`badge ${
+                        orderQuery.data.payment_method === "cash"
+                          ? "badge-success"
+                          : orderQuery.data.payment_method === "transfer"
+                            ? "badge-info"
+                            : "badge-primary"
+                      }`}
+                      style={{ fontSize: "0.78rem" }}
+                    >
+                      {orderQuery.data.payment_method === "cash"
+                        ? "💵 Tiền mặt"
+                        : orderQuery.data.payment_method === "transfer"
+                          ? "🏦 Chuyển khoản"
+                          : "💳 Thẻ POS"}
+                    </span>
+                  </div>
+                  <div className="flex-row-between" style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                    <span>Thời gian: {fmtDate(orderQuery.data.created_at)}</span>
+                    <span>
+                      Tổng tiền:{" "}
+                      <strong>
+                        {orderQuery.data.payment_method === "cash" &&
+                        (orderQuery.data.rounding_amount ?? 0) > 0 ? (
+                          <span>
+                            <span
+                              style={{
+                                textDecoration: "line-through",
+                                color: "var(--text-muted)",
+                                marginRight: 4,
+                              }}
+                            >
+                              {fmt(orderQuery.data.total_amount)}đ
+                            </span>
+                            {fmt(
+                              orderQuery.data.rounded_total ??
+                                Math.ceil(orderQuery.data.total_amount / 1000) * 1000,
+                            )} đ
+                          </span>
+                        ) : (
+                          `${fmt(orderQuery.data.total_amount)} đ`
+                        )}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    marginBottom: 8,
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Danh sách sản phẩm trong đơn ({matchedItems.length}):
                 </div>
 
                 {matchedItems.length === 0 ? (
-                  <div style={{ color: "var(--warning)", fontSize: "0.85rem" }}>
+                  <div style={{ color: "var(--warning)", fontSize: "0.85rem", padding: "10px 0" }}>
                     ⚠️ Đơn hàng này không chứa sản phẩm vừa quét mã vạch.
                   </div>
                 ) : (
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {matchedItems.map((item) => {
                       const isSelected = selectedItem?.id === item.id;
                       const returnedQty = item.returned_quantity ?? 0;
-                      const remainingQty = Math.max(
-                        0,
-                        item.quantity - returnedQty,
-                      );
+                      const remainingQty = Math.max(0, item.quantity - returnedQty);
                       const isFullyReturned = remainingQty === 0;
 
                       return (
@@ -409,14 +466,12 @@ export default function ReturnsPage() {
                           key={item.id}
                           type="button"
                           disabled={isFullyReturned}
-                          onClick={() =>
-                            !isFullyReturned && handleSelectItem(item)
-                          }
+                          onClick={() => !isFullyReturned && handleSelectItem(item)}
                           style={{
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            padding: "10px 14px",
+                            padding: "12px 14px",
                             borderRadius: "var(--radius-sm)",
                             cursor: isFullyReturned ? "not-allowed" : "pointer",
                             opacity: isFullyReturned ? 0.6 : 1,
@@ -435,24 +490,20 @@ export default function ReturnsPage() {
                           }}
                         >
                           <div>
-                            <div
-                              style={{ fontWeight: 600, fontSize: "0.9rem" }}
-                            >
+                            <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
                               {item.product_name ?? `SP #${item.product_id}`}
                             </div>
                             <div
                               style={{
                                 fontSize: "0.78rem",
                                 color: "var(--text-muted)",
-                                marginTop: 2,
+                                marginTop: 3,
                               }}
                             >
-                              Item #{item.id} · SL mua:{" "}
-                              <strong>{item.quantity}</strong>
+                              Item #{item.id} · SL mua: <strong>{item.quantity}</strong>
                               {returnedQty > 0 && (
                                 <span>
-                                  {" "}
-                                  · Đã trả:{" "}
+                                  {" "}· Đã trả:{" "}
                                   <strong style={{ color: "var(--danger)" }}>
                                     {returnedQty}
                                   </strong>
@@ -460,8 +511,7 @@ export default function ReturnsPage() {
                               )}
                               {remainingQty > 0 && (
                                 <span>
-                                  {" "}
-                                  · Có thể trả:{" "}
+                                  {" "}· Có thể trả:{" "}
                                   <strong style={{ color: "var(--success)" }}>
                                     {remainingQty}
                                   </strong>
@@ -539,7 +589,7 @@ export default function ReturnsPage() {
               letterSpacing: "0.05em",
             }}
           >
-            Bước 3 · Thông tin trả hàng
+            ↩️ Thông tin & Xác nhận trả hàng
           </h3>
 
           {/* Selected item summary */}

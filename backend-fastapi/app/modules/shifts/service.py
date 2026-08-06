@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -146,7 +146,10 @@ class ShiftsService:
 
         shift.closing_cash = dto.closing_cash
         shift.expected_cash = (
-            Decimal(shift.opening_cash) + cash_revenue - returns_totals["cash"]
+            Decimal(shift.opening_cash)
+            + cash_revenue
+            - returns_totals["cash"]
+            - returns_totals["transfer"]
         )
         shift.note = dto.note if dto.note is not None else shift.note
         shift.closed_at = datetime.now(timezone.utc)
@@ -256,7 +259,8 @@ class ShiftsService:
             orders_count += 1
             amount = Decimal(o.total_amount)
             if o.payment_method == "cash":
-                cash_total += amount
+                rounded = math.ceil(float(amount) / 1000) * 1000
+                cash_total += Decimal(rounded)
             elif o.payment_method == "card":
                 card_total += amount
             elif o.payment_method == "transfer":
@@ -280,7 +284,11 @@ class ShiftsService:
             )
 
         live_expected_cash = (
-            Decimal(shift.opening_cash) + cash_total - returns_totals["cash"]
+            Decimal(shift.opening_cash)
+            + cash_total
+            + transfer_total
+            - returns_totals["cash"]
+            - returns_totals["transfer"]
         )
 
         creator_ids = list(
@@ -288,20 +296,28 @@ class ShiftsService:
         )
         creator_names = await self.user_service.find_names_by_ids(creator_ids)
 
-        order_summaries = [
-            {
-                "id": o.id,
-                "created_by": o.created_by,
-                "created_by_name": creator_names.get(o.created_by),
-                "payment_method": o.payment_method,
-                "payment_status": o.payment_status,
-                "status": o.status,
-                "total_amount": float(o.total_amount),
-                "refunded_amount": float(order_refunds_map.get(o.id, Decimal("0"))),
-                "created_at": _iso(o.created_at),
-            }
-            for o in orders
-        ]
+        order_summaries = []
+        for o in orders:
+            total_amount = float(o.total_amount)
+            rounded_total = (
+                math.ceil(total_amount / 1000) * 1000
+                if o.payment_method == "cash"
+                else total_amount
+            )
+            order_summaries.append(
+                {
+                    "id": o.id,
+                    "created_by": o.created_by,
+                    "created_by_name": creator_names.get(o.created_by),
+                    "payment_method": o.payment_method,
+                    "payment_status": o.payment_status,
+                    "status": o.status,
+                    "total_amount": total_amount,
+                    "rounded_total": rounded_total,
+                    "refunded_amount": float(order_refunds_map.get(o.id, Decimal("0"))),
+                    "created_at": _iso(o.created_at),
+                }
+            )
 
         return_summaries = [
             {
@@ -370,7 +386,10 @@ class ShiftsService:
             cash_revenue = await self._cash_revenue_for_shift(shift_id)
             returns_totals = await self._returns_totals_by_shift(shift_id)
             expected_cash = (
-                Decimal(shift.opening_cash) + cash_revenue - returns_totals["cash"]
+                Decimal(shift.opening_cash)
+                + cash_revenue
+                - returns_totals["cash"]
+                - returns_totals["transfer"]
             )
             shift.closing_cash = update_data["closing_cash"]
             shift.expected_cash = expected_cash
@@ -435,9 +454,19 @@ class ShiftsService:
 
 
     async def _cash_revenue_for_shift(self, shift_id: int) -> Decimal:
-        stmt = select(func.coalesce(func.sum(Order.total_amount), 0)).where(
+        stmt = select(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Order.payment_method == "cash", func.ceil(Order.total_amount / 1000) * 1000),
+                        else_=Order.total_amount,
+                    )
+                ),
+                0,
+            )
+        ).where(
             Order.shift_id == shift_id,
-            Order.payment_method == "cash",
+            Order.payment_method.in_(["cash", "transfer"]),
             Order.status == "completed",
             Order.deleted_at.is_(None),
         )

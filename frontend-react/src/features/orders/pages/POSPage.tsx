@@ -204,6 +204,12 @@ export default function POSPage() {
   );
   const expiryDiscountTotal = Math.max(0, grossOriginal - subtotal);
   const total = Math.max(0, subtotal - effectiveDiscount);
+  // Preview làm tròn tiền mặt (trước khi đặt đơn)
+  const previewRoundingAmount =
+    paymentMethod === "cash"
+      ? Math.ceil(total / 1000) * 1000 - total
+      : 0;
+  const previewRoundedTotal = total + previewRoundingAmount;
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -802,7 +808,7 @@ export default function POSPage() {
                 </div>
               )}
 
-              {/* 4. Giá cuối */}
+              {/* 4. Tổng tiền thực */}
               <div
                 className="flex-row-between"
                 style={{
@@ -823,11 +829,49 @@ export default function POSPage() {
                   {total.toLocaleString("vi-VN")} đ
                 </span>
               </div>
+
+              {/* 5. Làm tròn tiền mặt (preview) */}
+              {paymentMethod === "cash" && previewRoundingAmount > 0 && (
+                <>
+                  <div
+                    className="flex-row-between"
+                    style={{ marginTop: "6px", fontSize: "0.85rem" }}
+                  >
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      Làm tròn tiền mặt:
+                    </span>
+                    <span style={{ color: "var(--warning)" }}>
+                      +{previewRoundingAmount.toLocaleString("vi-VN")} đ
+                    </span>
+                  </div>
+                  <div
+                    className="flex-row-between"
+                    style={{
+                      marginTop: "4px",
+                      padding: "8px 0 0",
+                      borderTop: "2px solid var(--primary)",
+                    }}
+                  >
+                    <span style={{ fontWeight: "700", fontSize: "1rem" }}>
+                      → Thực thu:
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: "800",
+                        fontSize: "1.25rem",
+                        color: "var(--success)",
+                      }}
+                    >
+                      {previewRoundedTotal.toLocaleString("vi-VN")} đ
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="form-group">
               <label>Phương thức thanh toán</label>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", overflow: "hidden" }}>
                 {(["cash", "card", "transfer"] as const).map((m) => (
                   <button
                     key={m}
@@ -835,11 +879,14 @@ export default function POSPage() {
                     className={`btn ${paymentMethod === m ? "btn-primary" : "btn-secondary"}`}
                     style={{
                       flex: 1,
+                      minWidth: 0,
                       fontSize: "0.85rem",
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "4px",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
                     }}
                     onClick={() => setPaymentMethod(m)}
                   >
@@ -1124,7 +1171,7 @@ export default function POSPage() {
                   );
                 })()}
 
-                {/* 4. Giá cuối */}
+                {/* 4. Tổng tiền */}
                 <div
                   className="flex-row-between"
                   style={{
@@ -1137,6 +1184,48 @@ export default function POSPage() {
                     {completedOrder.total_amount.toLocaleString("vi-VN")} đ
                   </span>
                 </div>
+
+                {/* 5. Làm tròn tiền mặt */}
+                {completedOrder.payment_method === "cash" &&
+                  completedOrder.rounding_amount > 0 && (
+                    <>
+                      <div
+                        className="flex-row-between"
+                        style={{ marginTop: 6, fontSize: "0.9rem" }}
+                      >
+                        <span style={{ color: "var(--text-secondary)" }}>
+                          Làm tròn tiền mặt:
+                        </span>
+                        <span style={{ color: "var(--warning)", fontWeight: 600 }}>
+                          +{
+                            completedOrder.rounding_amount.toLocaleString("vi-VN")
+                          }
+                          {" "}đ
+                        </span>
+                      </div>
+                      <div
+                        className="flex-row-between"
+                        style={{
+                          marginTop: 6,
+                          padding: "10px 0 0",
+                          borderTop: "2px solid var(--primary)",
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: "1rem" }}>
+                          → Thực thu khách:
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 800,
+                            fontSize: "1.2rem",
+                            color: "var(--success)",
+                          }}
+                        >
+                          {completedOrder.rounded_total.toLocaleString("vi-VN")} đ
+                        </span>
+                      </div>
+                    </>
+                  )}
 
                 <p style={{ marginTop: 12 }}>
                   <strong>Phương thức:</strong>{" "}

@@ -196,7 +196,7 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
               )}
               {shift.expected_cash != null && (
                 <div className="flex-row-between" style={{ marginTop: 8 }}>
-                  <span>Quỹ dự kiến (đầu ca + tiền mặt bán được)</span>
+                  <span>Quỹ dự kiến (đầu ca + tiền mặt + chuyển khoản)</span>
                   <strong>
                     {shift.expected_cash.toLocaleString("vi-VN")} đ
                   </strong>
@@ -311,7 +311,7 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                 }}
               >
                 <span style={{ fontWeight: 700 }}>
-                  Quỹ dự kiến (real-time, đã trừ trả hàng tiền mặt)
+                  Quỹ dự kiến (real-time, đã trừ trả hàng tiền mặt & chuyển khoản)
                 </span>
                 <strong style={{ fontSize: "1.05rem" }}>
                   {shift.live_expected_cash.toLocaleString("vi-VN")} đ
@@ -388,7 +388,23 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                             </span>
                           </td>
                           <td style={{ textAlign: "right" }}>
-                            {o.total_amount.toLocaleString("vi-VN")} đ
+                            {o.payment_method === "cash" && o.rounded_total !== o.total_amount ? (
+                              <span>
+                                <span
+                                  style={{
+                                    textDecoration: "line-through",
+                                    color: "var(--text-muted)",
+                                    fontSize: "0.8rem",
+                                    marginRight: 4,
+                                  }}
+                                >
+                                  {o.total_amount.toLocaleString("vi-VN")}đ
+                                </span>
+                                <strong>{o.rounded_total.toLocaleString("vi-VN")} đ</strong>
+                              </span>
+                            ) : (
+                              `${o.total_amount.toLocaleString("vi-VN")} đ`
+                            )}
                           </td>
                         </tr>
                       );

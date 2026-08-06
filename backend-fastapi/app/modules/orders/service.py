@@ -22,7 +22,7 @@ from app.modules.products.crud import ProductCRUD
 from app.modules.products.service import ProductService
 from app.modules.promotions.service import PromotionService
 from app.modules.shifts.service import ShiftsService
-from app.modules.zalopay.schemas import CreateZaloPayOrderDto
+from app.modules.zalopay.schemas import CancelZaloPayOrderDto, CreateZaloPayOrderDto
 from app.modules.zalopay.service import get_zalopay_service
 
 
@@ -32,6 +32,15 @@ def _parse_vn_date(value: str, end_of_day: bool) -> datetime:
 
 
 class OrderService:
+    @staticmethod
+    def _compute_cash_rounding(total_amount: float, payment_method: str) -> Tuple[float, float]:
+        ROUNDING_UNIT = 1000
+        if payment_method != "cash":
+            return 0.0, total_amount
+        rounded = math.ceil(total_amount / ROUNDING_UNIT) * ROUNDING_UNIT
+        rounding_amount = round((rounded - total_amount) * 100) / 100
+        return rounding_amount, rounded
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.crud = OrderCRUD(db)
@@ -352,10 +361,46 @@ class OrderService:
                 409,
                 "Đơn hàng này đã được hủy trước đó.",
             )
+        if pre_check.payment_status == "paid":
+            raise BusinessException(
+                "ORDER_ALREADY_PAID_CANNOT_CANCEL",
+                400,
+                "Không thể hủy đơn hàng đã thanh toán hoàn tất, vui lòng sử dụng chức năng Trả hàng.",
+            )
         if "admin" not in user.roles and pre_check.created_by != user.id:
             raise BusinessException(
                 "FORBIDDEN", 403, "Bạn không có quyền hủy đơn hàng này."
             )
+
+        if (
+            pre_check.payment_method == "transfer"
+            and pre_check.zalopay_app_trans_id
+            and pre_check.payment_status != "paid"
+        ):
+            try:
+                zalopay_service = get_zalopay_service()
+                zp_res = await zalopay_service.cancel_order(
+                    CancelZaloPayOrderDto(app_trans_id=pre_check.zalopay_app_trans_id)
+                )
+                return_code = zp_res.get("return_code")
+                sub_return_code = zp_res.get("sub_return_code")
+                if return_code != 1:
+                    if sub_return_code == -403:
+                        raise BusinessException(
+                            "ORDER_ALREADY_PAID",
+                            409,
+                            "Đơn hàng đã được thanh toán trên ZaloPay, không thể hủy. Vui lòng làm thủ tục hoàn tiền.",
+                        )
+                    elif sub_return_code != -101:
+                        raise BusinessException(
+                            "ZALOPAY_CANCEL_ERROR",
+                            400,
+                            f"Không thể hủy giao dịch trên ZaloPay: {zp_res.get('return_message')} (Mã lỗi: {sub_return_code})",
+                        )
+            except BusinessException:
+                raise
+            except Exception:
+                pass
 
         order = await self.crud.lock_by_id(order_id)
         if not order:
@@ -365,6 +410,12 @@ class OrderService:
                 "ORDER_ALREADY_CANCELLED",
                 409,
                 "Đơn hàng này đã được hủy trước đó.",
+            )
+        if order.payment_status == "paid":
+            raise BusinessException(
+                "ORDER_ALREADY_PAID_CANNOT_CANCEL",
+                400,
+                "Không thể hủy đơn hàng đã thanh toán hoàn tất, vui lòng sử dụng chức năng Trả hàng.",
             )
 
         items = await self.crud.get_items(order_id)
@@ -401,6 +452,11 @@ class OrderService:
         returns_map: Optional[Dict[int, int]] = None,
         batches_map: Optional[Dict[int, List[Dict[str, Any]]]] = None,
     ) -> Dict[str, Any]:
+        total_amount = float(order.total_amount)
+        rounding_amount, rounded_total = self._compute_cash_rounding(
+            total_amount, order.payment_method
+        )
+
         return {
             "id": order.id,
             "branch_id": order.branch_id,
@@ -410,7 +466,9 @@ class OrderService:
             "payment_method": order.payment_method,
             "payment_status": order.payment_status,
             "discount_amount": float(order.discount_amount),
-            "total_amount": float(order.total_amount),
+            "total_amount": total_amount,
+            "rounding_amount": rounding_amount,
+            "rounded_total": rounded_total,
             "items": [
                 {
                     "id": it.id,

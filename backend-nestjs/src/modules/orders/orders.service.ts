@@ -525,6 +525,15 @@ export class OrdersService {
         "Đơn hàng này đã được hủy trước đó.",
       );
     }
+
+    if (orderToCheck.paymentStatus === "paid") {
+      throw new BusinessException(
+        "ORDER_ALREADY_PAID_CANNOT_CANCEL",
+        400,
+        "Không thể hủy đơn hàng đã thanh toán hoàn tất, vui lòng sử dụng chức năng Trả hàng.",
+      );
+    }
+
     if (!user.roles.includes("admin") && orderToCheck.createdBy !== user.id) {
       throw new BusinessException(
         "FORBIDDEN",
@@ -535,8 +544,7 @@ export class OrdersService {
 
     if (
       orderToCheck.paymentMethod === "transfer" &&
-      orderToCheck.zalopayAppTransId &&
-      orderToCheck.paymentStatus !== "paid"
+      orderToCheck.zalopayAppTransId
     ) {
       try {
         const zpResult = await this.zaloPayService.cancelOrder({
@@ -648,6 +656,29 @@ export class OrdersService {
     }
   }
 
+  /**
+   * Tính số tiền làm tròn khi thanh toán tiền mặt.
+   * Áp dụng luật: làm tròn lên (⌈x⌉) đến bội số gần nhất của ROUNDING_UNIT (1.000 VND).
+   *
+   * Ví dụ:
+   *   12.300 → rounded_total = 13.000, rounding_amount = 700
+   *   12.000 → rounded_total = 12.000, rounding_amount = 0
+   *
+   * Nếu payment_method khác 'cash', không làm tròn (rounding_amount = 0).
+   */
+  private computeCashRounding(
+    totalAmount: number,
+    paymentMethod: string,
+  ): { rounding_amount: number; rounded_total: number } {
+    const ROUNDING_UNIT = 1000;
+    if (paymentMethod !== "cash") {
+      return { rounding_amount: 0, rounded_total: totalAmount };
+    }
+    const rounded = Math.ceil(totalAmount / ROUNDING_UNIT) * ROUNDING_UNIT;
+    const roundingAmount = Math.round((rounded - totalAmount) * 100) / 100;
+    return { rounding_amount: roundingAmount, rounded_total: rounded };
+  }
+
   private toDto(
     order: Order,
     items: OrderItem[],
@@ -663,6 +694,12 @@ export class OrdersService {
       }[]
     >,
   ): OrderDataDto {
+    const totalAmount = Number(order.totalAmount);
+    const { rounding_amount, rounded_total } = this.computeCashRounding(
+      totalAmount,
+      order.paymentMethod,
+    );
+
     return {
       id: order.id,
       branch_id: order.branchId,
@@ -672,7 +709,9 @@ export class OrdersService {
       payment_method: order.paymentMethod,
       payment_status: order.paymentStatus,
       discount_amount: Number(order.discountAmount),
-      total_amount: Number(order.totalAmount),
+      total_amount: totalAmount,
+      rounding_amount,
+      rounded_total,
       items: items.map((it) => ({
         id: it.id,
         product_id: it.productId,

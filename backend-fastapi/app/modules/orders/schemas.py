@@ -111,6 +111,8 @@ class OrderDataDto(BaseModel):
     payment_status: str
     discount_amount: float
     total_amount: float
+    rounding_amount: float = 0.0
+    rounded_total: float = 0.0
     items: List[OrderItemDto]
     created_at: str
     updated_at: str

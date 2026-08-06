@@ -90,6 +90,22 @@ export class OrderDataDto {
   @ApiProperty({ example: 12000 })
   total_amount: number;
 
+  @ApiProperty({
+    example: 700,
+    description:
+      "Số tiền điều chỉnh làm tròn tiền mặt (làm tròn lên đến 1.000 VND). " +
+      "Luôn >= 0. Bằng 0 nếu total_amount đã chẵn nghìn hoặc payment_method khác 'cash'.",
+  })
+  rounding_amount: number;
+
+  @ApiProperty({
+    example: 13000,
+    description:
+      "Số tiền thực thu khách = total_amount + rounding_amount. " +
+      "Luôn là bội số của 1.000 VND khi payment_method='cash'.",
+  })
+  rounded_total: number;
+
   @ApiProperty({ type: [OrderItemDto] })
   items: OrderItemDto[];
 
