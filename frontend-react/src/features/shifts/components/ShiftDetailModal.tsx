@@ -196,7 +196,7 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
               )}
               {shift.expected_cash != null && (
                 <div className="flex-row-between" style={{ marginTop: 8 }}>
-                  <span>Quỹ dự kiến (đầu ca + tiền mặt + chuyển khoản)</span>
+                  <span>Quỹ tiền mặt dự kiến trong két (đầu ca + tiền mặt)</span>
                   <strong>
                     {shift.expected_cash.toLocaleString("vi-VN")} đ
                   </strong>
@@ -311,7 +311,7 @@ export function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                 }}
               >
                 <span style={{ fontWeight: 700 }}>
-                  Quỹ dự kiến (real-time, đã trừ trả hàng tiền mặt & chuyển khoản)
+                  Quỹ tiền mặt dự kiến trong két (real-time, đã trừ trả hàng tiền mặt)
                 </span>
                 <strong style={{ fontSize: "1.05rem" }}>
                   {shift.live_expected_cash.toLocaleString("vi-VN")} đ

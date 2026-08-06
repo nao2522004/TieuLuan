@@ -146,10 +146,7 @@ class ShiftsService:
 
         shift.closing_cash = dto.closing_cash
         shift.expected_cash = (
-            Decimal(shift.opening_cash)
-            + cash_revenue
-            - returns_totals["cash"]
-            - returns_totals["transfer"]
+            Decimal(shift.opening_cash) + cash_revenue - returns_totals["cash"]
         )
         shift.note = dto.note if dto.note is not None else shift.note
         shift.closed_at = datetime.now(timezone.utc)
@@ -284,11 +281,7 @@ class ShiftsService:
             )
 
         live_expected_cash = (
-            Decimal(shift.opening_cash)
-            + cash_total
-            + transfer_total
-            - returns_totals["cash"]
-            - returns_totals["transfer"]
+            Decimal(shift.opening_cash) + cash_total - returns_totals["cash"]
         )
 
         creator_ids = list(
@@ -386,10 +379,7 @@ class ShiftsService:
             cash_revenue = await self._cash_revenue_for_shift(shift_id)
             returns_totals = await self._returns_totals_by_shift(shift_id)
             expected_cash = (
-                Decimal(shift.opening_cash)
-                + cash_revenue
-                - returns_totals["cash"]
-                - returns_totals["transfer"]
+                Decimal(shift.opening_cash) + cash_revenue - returns_totals["cash"]
             )
             shift.closing_cash = update_data["closing_cash"]
             shift.expected_cash = expected_cash
@@ -455,18 +445,10 @@ class ShiftsService:
 
     async def _cash_revenue_for_shift(self, shift_id: int) -> Decimal:
         stmt = select(
-            func.coalesce(
-                func.sum(
-                    case(
-                        (Order.payment_method == "cash", func.ceil(Order.total_amount / 1000) * 1000),
-                        else_=Order.total_amount,
-                    )
-                ),
-                0,
-            )
+            func.coalesce(func.sum(func.ceil(Order.total_amount / 1000) * 1000), 0)
         ).where(
             Order.shift_id == shift_id,
-            Order.payment_method.in_(["cash", "transfer"]),
+            Order.payment_method == "cash",
             Order.status == "completed",
             Order.deleted_at.is_(None),
         )
